@@ -28,11 +28,21 @@ export async function POST(request) {
   const userAgent = (request.headers.get('user-agent') || '').slice(0, 300);
   const admin = createAdminClient();
 
-  const { data: profile } = await admin
+  const { data: profile, error: profileError } = await admin
     .from('app_users')
     .select('max_ips')
     .eq('id', user.id)
     .maybeSingle();
+
+  // 欄位或資料表還沒建立時，放行但明講檢查沒生效，避免把人擋在門外又查不出原因
+  if (profileError) {
+    return NextResponse.json({
+      allowed: true,
+      ip,
+      warning: 'check_unavailable',
+      detail: profileError.message,
+    });
+  }
 
   const limit = profile?.max_ips ?? 0;
 

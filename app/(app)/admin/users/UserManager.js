@@ -7,7 +7,13 @@ import Button from '@/components/ui/Button';
 import Spinner from '@/components/ui/Spinner';
 import { useToast, useConfirm } from '@/components/ui/UiProvider';
 
-export default function UserManager({ me, initialUsers, ipCounts = {}, creatableRoles }) {
+export default function UserManager({
+  me,
+  initialUsers,
+  ipCounts = {},
+  ipList = {},
+  creatableRoles,
+}) {
   const router = useRouter();
   const toast = useToast();
   const confirm = useConfirm();
@@ -206,7 +212,14 @@ export default function UserManager({ me, initialUsers, ipCounts = {}, creatable
                                 }
                               }}
                             />
-                            <span style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
+                            <span
+                              style={{
+                                fontSize: 12,
+                                color: 'var(--muted-foreground)',
+                                cursor: ipCounts[user.id] ? 'help' : 'default',
+                              }}
+                              title={(ipList[user.id] || []).join('\n') || '尚未記錄任何位置'}
+                            >
                               已用 {ipCounts[user.id] || 0}
                             </span>
                           </span>

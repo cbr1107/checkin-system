@@ -1093,3 +1093,32 @@ tbody tr:last-child td { border-bottom: 0; }
 @keyframes idle-blink {
   50% { opacity: 0.55; }
 }
+
+/* html5-qrcode 會在容器內插入 video 與自己的控制列，
+   這裡把畫面撐滿並隱藏它預設的 UI。 */
+#qr-reader {
+  width: 100%;
+  border: 0 !important;
+}
+
+#qr-reader video {
+  width: 100% !important;
+  height: auto !important;
+  display: block;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
+#qr-reader__dashboard,
+#qr-reader__header_message,
+#qr-reader__status_span {
+  display: none !important;
+}
+
+#qr-reader__scan_region {
+  min-height: 0 !important;
+}
+
+#qr-reader__scan_region img {
+  display: none !important;
+}

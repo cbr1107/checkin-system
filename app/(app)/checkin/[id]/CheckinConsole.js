@@ -461,18 +461,44 @@ export default function CheckinConsole({
 
     setCameraError('');
     setCameraStarting(true);
+
+    // 容器必須先顯示出來：html5-qrcode 會量它的尺寸，
+    // 對著 display:none 的容器啟動會拿到 0×0，相機開了卻看不到畫面。
+    setCameraOn(true);
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
     try {
       const { Html5Qrcode } = await import('html5-qrcode');
       const scanner = new Html5Qrcode('qr-reader', { verbose: false });
+
+      // 優先用後鏡頭；抓不到裝置清單時退回 facingMode
+      let cameraConfig = { facingMode: 'environment' };
+      try {
+        const cameras = await Html5Qrcode.getCameras();
+        if (cameras?.length) {
+          const back = cameras.find((c) => /back|rear|environment|後/i.test(c.label));
+          cameraConfig = { deviceId: { exact: (back || cameras[cameras.length - 1]).id } };
+        }
+      } catch {
+        // 沒有列舉權限就用 facingMode
+      }
+
       await scanner.start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 240, height: 240 } },
+        cameraConfig,
+        {
+          fps: 10,
+          qrbox: (width, height) => {
+            const edge = Math.floor(Math.min(width, height) * 0.75);
+            return { width: edge, height: edge };
+          },
+          aspectRatio: 1.0,
+        },
         (text) => submit(text, 'scan'),
         () => {}
       );
       scannerRef.current = scanner;
-      setCameraOn(true);
     } catch (err) {
+      setCameraOn(false);
       setCameraError(
         err?.message?.includes('Permission')
           ? '瀏覽器沒有相機權限。請在網址列的權限設定中允許相機後再試。'

@@ -21,10 +21,16 @@ export default async function UsersPage() {
 
   const { data: users } = await query;
 
-  const { data: ipRows } = await supabase.from('login_ips').select('user_id');
+  const { data: ipRows } = await supabase
+    .from('login_ips')
+    .select('user_id, ip, last_seen')
+    .order('last_seen', { ascending: false });
+
   const ipCounts = {};
+  const ipList = {};
   for (const row of ipRows || []) {
     ipCounts[row.user_id] = (ipCounts[row.user_id] || 0) + 1;
+    (ipList[row.user_id] ||= []).push(row.ip);
   }
 
   return (
@@ -37,6 +43,7 @@ export default async function UsersPage() {
         me={profile}
         initialUsers={users || []}
         ipCounts={ipCounts}
+        ipList={ipList}
         creatableRoles={CREATABLE_ROLES[profile.role] || []}
       />
     </main>
