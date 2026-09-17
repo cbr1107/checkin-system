@@ -112,7 +112,7 @@ export default function SubEventList({ initialEvents, counts }) {
                   <th>名稱</th>
                   <th>時間</th>
                   <th>地點</th>
-                  <th>名單</th>
+                  <th>已報到／名單</th>
                   <th>簽退</th>
                   <th>狀態</th>
                 </tr>
@@ -125,7 +125,9 @@ export default function SubEventList({ initialEvents, counts }) {
                     </td>
                     <td>{formatRange(ev.starts_at, ev.ends_at)}</td>
                     <td>{ev.location || '—'}</td>
-                    <td>{counts[ev.id] || 0} 人</td>
+                    <td>
+                      {counts[ev.id]?.checkedIn ?? 0}／{counts[ev.id]?.total ?? 0} 人
+                    </td>
                     <td>{ev.require_checkout ? '需簽退' : '—'}</td>
                     <td>{ev.is_active ? '進行中' : '已封存'}</td>
                   </tr>

@@ -8,6 +8,7 @@ import {
   buildRows,
   inspectRows,
 } from '@/lib/roster';
+import Busy from '../../Busy';
 
 export default function ImportWizard({ subEventId }) {
   const router = useRouter();
@@ -19,6 +20,7 @@ export default function ImportWizard({ subEventId }) {
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [busyLabel, setBusyLabel] = useState('');
 
   async function handleFile(event) {
     const file = event.target.files?.[0];
@@ -26,6 +28,7 @@ export default function ImportWizard({ subEventId }) {
 
     setError('');
     setResult(null);
+    setBusyLabel('讀取檔案…');
     setBusy(true);
 
     try {
@@ -63,6 +66,7 @@ export default function ImportWizard({ subEventId }) {
     }
 
     setBusy(false);
+    setBusyLabel('');
     event.target.value = '';
   }
 
@@ -74,6 +78,7 @@ export default function ImportWizard({ subEventId }) {
   async function submitImport() {
     if (!prepared || prepared.valid.length === 0) return;
     setBusy(true);
+    setBusyLabel(`匯入 ${prepared.valid.length} 筆…`);
     setError('');
 
     const res = await fetch(`/api/sub-events/${subEventId}/import`, {
@@ -83,6 +88,7 @@ export default function ImportWizard({ subEventId }) {
     });
     const json = await res.json();
     setBusy(false);
+    setBusyLabel('');
 
     if (!res.ok) {
       setError(json.error || '匯入失敗');
@@ -104,6 +110,7 @@ export default function ImportWizard({ subEventId }) {
 
   return (
     <div className="card">
+      <Busy show={Boolean(busyLabel)} label={busyLabel} />
       <h3>匯入名單</h3>
 
       {error && <div className="notice notice-error">{error}</div>}
@@ -198,7 +205,7 @@ export default function ImportWizard({ subEventId }) {
 
           <div style={{ display: 'flex', gap: 10 }}>
             <button
-              className="btn-primary"
+              className="btn-primary is-busy"
               onClick={submitImport}
               disabled={busy || missingRequired || prepared.valid.length === 0}
             >

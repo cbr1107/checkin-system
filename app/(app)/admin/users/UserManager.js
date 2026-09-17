@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ROLE_LABELS } from '@/lib/constants';
+import Busy from '../../Busy';
 
 export default function UserManager({ me, initialUsers, creatableRoles }) {
   const router = useRouter();
@@ -10,6 +11,7 @@ export default function UserManager({ me, initialUsers, creatableRoles }) {
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState(creatableRoles[0] || 'checkin');
   const [busy, setBusy] = useState(false);
+  const [busyLabel, setBusyLabel] = useState('');
   const [error, setError] = useState('');
   const [ok, setOk] = useState('');
 
@@ -48,6 +50,7 @@ export default function UserManager({ me, initialUsers, creatableRoles }) {
     if (confirmText && !window.confirm(confirmText)) return;
     setError('');
     setOk('');
+    setBusyLabel('處理中…');
 
     const res = await fetch(`/api/admin/users/${user.id}`, {
       method: body === 'delete' ? 'DELETE' : 'PATCH',
@@ -55,6 +58,7 @@ export default function UserManager({ me, initialUsers, creatableRoles }) {
       body: body === 'delete' ? undefined : JSON.stringify(body),
     });
     const json = await res.json().catch(() => ({}));
+    setBusyLabel('');
 
     if (!res.ok) {
       setError(json.error || '操作失敗');
@@ -76,6 +80,8 @@ export default function UserManager({ me, initialUsers, creatableRoles }) {
 
   return (
     <>
+      <Busy show={Boolean(busyLabel)} label={busyLabel} />
+
       {error && <div className="notice notice-error">{error}</div>}
       {ok && <div className="notice notice-ok">{ok}</div>}
 

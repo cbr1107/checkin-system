@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { atLeast } from '@/lib/constants';
 import ImportWizard from './ImportWizard';
+import Busy from '../../Busy';
 
 function toLocalInput(value) {
   if (!value) return '';
@@ -175,6 +176,8 @@ export default function SubEventDetail({
           {event.require_checkout ? ' · 需要簽退' : ''}
         </p>
       </div>
+
+      <Busy show={busy} label="儲存中…" />
 
       {error && <div className="notice notice-error">{error}</div>}
       {message && <div className="notice notice-ok">{message}</div>}

@@ -385,3 +385,487 @@ tbody tr:hover {
     transition: none !important;
   }
 }
+
+/* ===================================================================
+   現場報到畫面
+   訊號色是這頁的主角：結果面板整片變色，遠看就能判讀。
+   =================================================================== */
+
+.event-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.event-tile {
+  display: block;
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+.event-tile:hover {
+  border-color: var(--primary);
+}
+
+.event-tile strong {
+  display: block;
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+
+.event-tile span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.checkin-shell {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 20px 20px 48px;
+}
+
+.checkin-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.checkin-bar strong {
+  font-size: 18px;
+  margin-right: 10px;
+}
+
+.checkin-stats {
+  color: var(--muted);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mode-switch {
+  display: flex;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-left: auto;
+}
+
+.mode-switch button {
+  border: 0;
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--muted);
+  padding: 10px 20px;
+  font-weight: 600;
+}
+
+.mode-switch button.active.in {
+  background: var(--ok);
+  color: #fff;
+}
+
+.mode-switch button.active.out {
+  background: var(--info);
+  color: #fff;
+}
+
+.mode-static {
+  margin-left: auto;
+  padding: 10px 20px;
+  border-radius: var(--radius);
+  background: var(--ok);
+  color: #fff;
+  font-weight: 600;
+}
+
+.checkin-body {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.scan-pane {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.scan-input {
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+
+.camera-box {
+  background: var(--surface-sunken);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 12px;
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#qr-reader {
+  width: 100%;
+}
+
+#qr-reader.hidden {
+  display: none;
+}
+
+.camera-placeholder {
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 24px 16px;
+  line-height: 1.8;
+}
+
+.result-pane {
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  min-height: 340px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 24px;
+  text-align: center;
+  color: #fff;
+}
+
+.result-pane.tone-idle {
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.result-pane.tone-ok { background: var(--ok); border-color: var(--ok); }
+.result-pane.tone-info { background: var(--info); border-color: var(--info); }
+.result-pane.tone-warn { background: var(--warn); border-color: var(--warn); }
+.result-pane.tone-danger { background: var(--danger); border-color: var(--danger); }
+
+.result-inner h2 {
+  font-size: 26px;
+  margin-bottom: 18px;
+}
+
+.result-fields {
+  margin: 0 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.result-fields dt {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.result-fields dd {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.result-fields .f-xl dd { font-size: clamp(38px, 7vw, 64px); }
+.result-fields .f-lg dd { font-size: clamp(24px, 4vw, 34px); }
+.result-fields .f-md dd { font-size: 20px; }
+.result-fields .f-sm dd { font-size: 16px; }
+
+.result-detail {
+  font-size: 17px;
+  opacity: 0.92;
+  margin: 0;
+}
+
+.result-time {
+  margin: 12px 0 0;
+  font-size: 14px;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
+.result-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.result-pane .btn-primary {
+  background: #fff;
+  color: var(--text);
+}
+
+.result-pane .btn-quiet {
+  background: transparent;
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.manual-pane {
+  margin-top: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.manual-results {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+
+.manual-results li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--line);
+}
+
+.manual-results em {
+  display: block;
+  font-style: normal;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.manual-note {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+}
+
+@media (max-width: 800px) {
+  .checkin-body {
+    grid-template-columns: 1fr;
+  }
+  .result-pane {
+    order: -1;
+    min-height: 260px;
+  }
+  .mode-switch {
+    width: 100%;
+    margin-left: 0;
+  }
+  .mode-switch button {
+    flex: 1;
+  }
+}
+
+/* ---------- 連線狀態 ---------- */
+.sync-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.sync-bar.offline {
+  background: #fdf5e7;
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.sync-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+  flex: 0 0 auto;
+}
+
+.sync-bar.offline .sync-dot {
+  background: var(--warn);
+}
+
+.sync-note {
+  margin-left: auto;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+/* ===================================================================
+   載入與忙碌狀態
+   =================================================================== */
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  display: inline-block;
+  animation: spin 0.7s linear infinite;
+  flex: 0 0 auto;
+}
+
+.spinner.inline {
+  width: 13px;
+  height: 13px;
+  border-width: 2px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2s;
+  }
+}
+
+.route-loading {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 64px 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+}
+
+.busy-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(30, 37, 34, 0.32);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.busy-box {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 20px 28px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 12px 40px rgba(30, 37, 34, 0.2);
+  font-size: 15px;
+}
+
+button[disabled].is-busy::before {
+  content: '';
+  width: 13px;
+  height: 13px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 8px;
+  vertical-align: -2px;
+  animation: spin 0.7s linear infinite;
+}
+
+/* ===================================================================
+   統計
+   =================================================================== */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.stat {
+  background: var(--surface-sunken);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.stat-value {
+  display: block;
+  font-size: 30px;
+  font-weight: 650;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-value em {
+  font-style: normal;
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.stat-label {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.team-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.team-bar {
+  display: grid;
+  grid-template-columns: minmax(64px, 110px) 1fr auto;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.team-name {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+
+.bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--ok);
+}
+
+.team-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.muted-row {
+  opacity: 0.5;
+}
+
+.muted-row td {
+  text-decoration: line-through;
+}

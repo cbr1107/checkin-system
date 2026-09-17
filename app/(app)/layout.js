@@ -1,10 +1,20 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { requireUser } from '@/lib/auth';
 import { ROLE_LABELS, APP_VERSION, APP_VERSION_DATE, atLeast } from '@/lib/constants';
 import SignOutButton from './SignOutButton';
+import OfflineReady from './OfflineReady';
+
+function clientIp() {
+  const h = headers();
+  const forwarded = h.get('x-forwarded-for');
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return h.get('x-real-ip') || h.get('cf-connecting-ip') || '本機';
+}
 
 export default async function AppLayout({ children }) {
   const profile = await requireUser();
+  const ip = clientIp();
 
   const links = [
     { href: '/dashboard', label: '總覽', min: 'checkin' },
@@ -34,9 +44,10 @@ export default async function AppLayout({ children }) {
       </header>
 
       {children}
+      <OfflineReady />
 
       <span className="version">
-        {APP_VERSION} · {APP_VERSION_DATE}
+        {APP_VERSION} · {APP_VERSION_DATE} · IP {ip}
       </span>
     </>
   );
