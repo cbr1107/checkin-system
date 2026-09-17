@@ -1,20 +1,27 @@
 /**
  * 現場報到系統的離線外殼。
- * 只做兩件事：快取靜態資源，以及把造訪過的頁面存起來，
- * 讓現場斷線後重新整理仍打得開報到畫面。
- * 報到資料本身存在 IndexedDB，不經過這裡。
+ *
+ * 版本號由註冊時的 ?v= 帶進來（見 OfflineReady.js）。
+ * 每次發版網址就不同，瀏覽器會視為新的 Service Worker 並安裝，
+ * 但不會自動接管——等使用者在畫面上按下「立即更新」才切換，
+ * 避免報到進行到一半頁面突然重載。
  */
-const CACHE = 'checkin-shell-v1';
+const VERSION = new URL(self.location).searchParams.get('v') || 'dev';
+const CACHE = `checkin-${VERSION}`;
 
-self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('install', () => {
+  // 不呼叫 skipWaiting：新版本先在旁邊等著
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
+});
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) =>
-        Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
-      )
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -26,8 +33,11 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // 靜態資源：先用快取
-  if (url.pathname.startsWith('/_next/static') || url.pathname === '/sw.js') {
+  // Service Worker 本身與 API 一律走網路
+  if (url.pathname === '/sw.js' || url.pathname.startsWith('/api/')) return;
+
+  // 靜態資源：檔名帶雜湊，可以放心用快取
+  if (url.pathname.startsWith('/_next/static')) {
     event.respondWith(
       caches.match(request).then(
         (hit) =>
@@ -42,7 +52,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 頁面：先連線，失敗時退回上次看到的版本
+  // 頁面：先連線，失敗才退回上次看到的版本
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
