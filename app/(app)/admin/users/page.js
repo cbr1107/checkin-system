@@ -11,7 +11,7 @@ export default async function UsersPage() {
 
   let query = supabase
     .from('app_users')
-    .select('id, account, display_name, role, is_active, must_change_password, note, created_by, created_at')
+    .select('id, account, display_name, role, is_active, must_change_password, max_ips, note, created_by, created_at')
     .order('created_at', { ascending: false });
 
   // 註冊長只看得到自己建立的報到人員
@@ -20,6 +20,12 @@ export default async function UsersPage() {
   }
 
   const { data: users } = await query;
+
+  const { data: ipRows } = await supabase.from('login_ips').select('user_id');
+  const ipCounts = {};
+  for (const row of ipRows || []) {
+    ipCounts[row.user_id] = (ipCounts[row.user_id] || 0) + 1;
+  }
 
   return (
     <main className="page">
@@ -30,6 +36,7 @@ export default async function UsersPage() {
       <UserManager
         me={profile}
         initialUsers={users || []}
+        ipCounts={ipCounts}
         creatableRoles={CREATABLE_ROLES[profile.role] || []}
       />
     </main>

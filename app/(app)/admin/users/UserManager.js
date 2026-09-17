@@ -7,7 +7,7 @@ import Button from '@/components/ui/Button';
 import Spinner from '@/components/ui/Spinner';
 import { useToast, useConfirm } from '@/components/ui/UiProvider';
 
-export default function UserManager({ me, initialUsers, creatableRoles }) {
+export default function UserManager({ me, initialUsers, ipCounts = {}, creatableRoles }) {
   const router = useRouter();
   const toast = useToast();
   const confirm = useConfirm();
@@ -148,6 +148,7 @@ export default function UserManager({ me, initialUsers, creatableRoles }) {
                   <th>姓名</th>
                   <th>身分</th>
                   <th>狀態</th>
+                  <th>IP 上限</th>
                   <th />
                 </tr>
               </thead>
@@ -187,6 +188,34 @@ export default function UserManager({ me, initialUsers, creatableRoles }) {
                           <span className="badge badge-success">使用中</span>
                         )}
                       </td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        {me.role === 'admin' ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <input
+                              className="input-sm"
+                              type="number"
+                              min="0"
+                              max="50"
+                              defaultValue={user.max_ips ?? 0}
+                              disabled={busy}
+                              style={{ width: 62 }}
+                              onBlur={(e) => {
+                                const value = Number(e.target.value);
+                                if (value !== (user.max_ips ?? 0)) {
+                                  act(user, { action: 'set_max_ips', max_ips: value });
+                                }
+                              }}
+                            />
+                            <span style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
+                              已用 {ipCounts[user.id] || 0}
+                            </span>
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>
+                            {user.max_ips ? `${ipCounts[user.id] || 0}／${user.max_ips}` : '不限'}
+                          </span>
+                        )}
+                      </td>
                       <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                         {canManage(user) && (
                           <span style={{ display: 'inline-flex', gap: 6 }}>
@@ -215,6 +244,23 @@ export default function UserManager({ me, initialUsers, creatableRoles }) {
                               }
                             >
                               {user.is_active ? '停用' : '啟用'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              disabled={busy || !(ipCounts[user.id] || 0)}
+                              onClick={() =>
+                                act(
+                                  user,
+                                  { action: 'reset_ips' },
+                                  {
+                                    title: '重設登入位置',
+                                    description: `清除 ${user.display_name} 已記錄的 ${ipCounts[user.id] || 0} 個網路位置，下次登入會重新開始累計。`,
+                                    confirmLabel: '重設',
+                                  }
+                                )
+                              }
+                            >
+                              重設 IP
                             </Button>
                             <Button
                               size="sm"

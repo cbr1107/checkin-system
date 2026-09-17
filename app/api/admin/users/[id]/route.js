@@ -75,6 +75,23 @@ export async function PATCH(request, { params }) {
     return NextResponse.json({ ok: true });
   }
 
+  if (body.action === 'set_max_ips') {
+    if (caller.role !== 'admin') {
+      return NextResponse.json({ error: '只有系統管理員能設定 IP 上限' }, { status: 403 });
+    }
+    const value = Number(body.max_ips);
+    if (!Number.isInteger(value) || value < 0 || value > 50) {
+      return NextResponse.json({ error: 'IP 上限需為 0 到 50 的整數' }, { status: 400 });
+    }
+    await admin.from('app_users').update({ max_ips: value }).eq('id', target.id);
+    return NextResponse.json({ ok: true });
+  }
+
+  if (body.action === 'reset_ips') {
+    await admin.from('login_ips').delete().eq('user_id', target.id);
+    return NextResponse.json({ ok: true });
+  }
+
   if (body.action === 'set_role') {
     if (caller.role !== 'admin') {
       return NextResponse.json({ error: '只有系統管理員能變更身分' }, { status: 403 });

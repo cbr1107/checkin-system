@@ -51,6 +51,21 @@ export default function LoginForm({ initialError }) {
       return;
     }
 
+    const ipCheck = await fetch('/api/auth/login-check', { method: 'POST' })
+      .then((r) => r.json())
+      .catch(() => ({ allowed: true }));
+
+    if (!ipCheck.allowed) {
+      await supabase.auth.signOut();
+      setError(
+        ipCheck.reason === 'ip_limit'
+          ? `這個帳號最多只能從 ${ipCheck.limit} 個網路位置登入，目前的位置（${ipCheck.ip}）不在其中。請聯絡管理員。`
+          : '登入驗證失敗，請重新登入'
+      );
+      setBusy(false);
+      return;
+    }
+
     // 保持 busy：導頁需要時間，這段不能讓按鈕看起來可以再按
     router.push(
       profile.must_change_password ? '/change-password' : params.get('next') || '/dashboard'
