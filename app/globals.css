@@ -1,0 +1,387 @@
+:root {
+  /* 介面色 */
+  --bg: #fbfbf9;
+  --surface: #ffffff;
+  --surface-sunken: #f2f4f1;
+  --line: #dadfd8;
+  --line-strong: #b9c1b7;
+  --text: #1e2522;
+  --muted: #5e6a64;
+
+  /* 主色：深松綠，與現場訊號色（綠/藍/黃/紅）足夠區隔 */
+  --primary: #0e4f4a;
+  --primary-hover: #0a3d39;
+  --primary-ink: #f2f8f6;
+
+  /* 現場訊號色 */
+  --ok: #197a48;
+  --info: #1f5e9e;
+  --warn: #9c6a05;
+  --danger: #9e2b25;
+
+  --radius: 6px;
+  --shadow: 0 1px 2px rgba(30, 37, 34, 0.06), 0 8px 24px rgba(30, 37, 34, 0.05);
+  --font: system-ui, -apple-system, "PingFang TC", "Noto Sans TC",
+    "Microsoft JhengHei", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.3;
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+a {
+  color: var(--primary);
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ---------- 表單 ---------- */
+.field {
+  display: block;
+  margin-bottom: 16px;
+}
+
+.field > span {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+input:focus,
+select:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(14, 79, 74, 0.12);
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  padding: 10px 18px;
+  transition: background-color 0.12s ease;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-ink);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.btn-quiet {
+  background: var(--surface);
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.btn-quiet:hover:not(:disabled) {
+  background: var(--surface-sunken);
+}
+
+.btn-danger {
+  background: var(--surface);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 13px;
+}
+
+/* ---------- 訊息 ---------- */
+.notice {
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  border-left: 3px solid;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.notice-error {
+  border-color: var(--danger);
+  background: #fbf0ef;
+  color: var(--danger);
+}
+
+.notice-ok {
+  border-color: var(--ok);
+  background: #eff6f1;
+  color: var(--ok);
+}
+
+.notice-info {
+  border-color: var(--info);
+  background: #eef3fa;
+  color: var(--info);
+}
+
+/* ---------- 登入 / 改密碼 ---------- */
+.auth-shell {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.auth-brand {
+  background: var(--primary);
+  color: var(--primary-ink);
+  padding: 56px 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.auth-brand h1 {
+  font-size: clamp(34px, 5vw, 56px);
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  line-height: 1.25;
+}
+
+.auth-brand p {
+  max-width: 28ch;
+  opacity: 0.82;
+  margin: 18px 0 0;
+}
+
+.auth-brand footer {
+  font-size: 13px;
+  opacity: 0.68;
+}
+
+.auth-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+}
+
+.auth-form {
+  width: 100%;
+  max-width: 360px;
+}
+
+.auth-form h2 {
+  font-size: 22px;
+  margin-bottom: 4px;
+}
+
+.auth-form .lede {
+  color: var(--muted);
+  margin: 0 0 24px;
+  font-size: 14px;
+}
+
+@media (max-width: 760px) {
+  .auth-shell {
+    grid-template-columns: 1fr;
+  }
+  .auth-brand {
+    padding: 36px 24px 28px;
+  }
+  .auth-brand p {
+    display: none;
+  }
+}
+
+/* ---------- 主框架 ---------- */
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 56px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.topbar .brand {
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.topbar nav {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+  overflow-x: auto;
+}
+
+.topbar nav a {
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.topbar nav a:hover {
+  background: var(--surface-sunken);
+  color: var(--text);
+}
+
+.topbar .who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.role-chip {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+
+.page-head {
+  margin-bottom: 24px;
+}
+
+.page-head p {
+  color: var(--muted);
+  margin: 6px 0 0;
+  max-width: 62ch;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.card + .card {
+  margin-top: 20px;
+}
+
+.card h3 {
+  font-size: 16px;
+  margin-bottom: 14px;
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.row .field {
+  flex: 1 1 160px;
+  margin-bottom: 0;
+}
+
+/* ---------- 表格 ---------- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+th {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+tbody tr:hover {
+  background: var(--surface-sunken);
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.version {
+  position: fixed;
+  left: 12px;
+  bottom: 10px;
+  font-size: 11px;
+  color: var(--muted);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
