@@ -25,11 +25,6 @@ export default async function UsersPage() {
     <main className="page">
       <div className="page-head">
         <h1>帳號管理</h1>
-        <p>
-          {profile.role === 'admin'
-            ? '建立與管理所有身分的帳號。新帳號的初始密碼與帳號相同，使用者首次登入時必須自行更換。'
-            : '建立與管理報到人員帳號。新帳號的初始密碼與帳號相同，使用者首次登入時必須自行更換。'}
-        </p>
       </div>
 
       <UserManager

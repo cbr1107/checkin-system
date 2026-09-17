@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import Busy from '../../Busy';
+import Button from '@/components/ui/Button';
+import Switch from '@/components/ui/Switch';
+import { useToast } from '@/components/ui/UiProvider';
 
 const SIZES = [
   { value: 'xl', label: '特大' },
@@ -16,13 +18,14 @@ const FIXED = ['name', 'code', 'team'];
 
 export default function SettingsForm({ displayFields, offlineCheckin }) {
   const router = useRouter();
+  const toast = useToast();
+
   const [fields, setFields] = useState(displayFields.fields || []);
   const [offline, setOffline] = useState(offlineCheckin.enabled !== false);
   const [newKey, setNewKey] = useState('');
   const [newLabel, setNewLabel] = useState('');
-  const [busyLabel, setBusyLabel] = useState('');
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [, startRefresh] = useTransition();
 
   function patch(index, changes) {
     setFields((prev) => prev.map((f, i) => (i === index ? { ...f, ...changes } : f)));
@@ -43,10 +46,9 @@ export default function SettingsForm({ displayFields, offlineCheckin }) {
     const key = newKey.trim();
     if (!key) return;
     if (fields.some((f) => f.key === key)) {
-      setError('這個欄位已經在清單中');
+      toast('這個欄位已經在清單中', 'error');
       return;
     }
-    setError('');
     setFields((prev) => [
       ...prev,
       { key, label: newLabel.trim() || key, enabled: true, size: 'md' },
@@ -60,66 +62,44 @@ export default function SettingsForm({ displayFields, offlineCheckin }) {
   }
 
   async function save() {
-    setBusyLabel('儲存設定…');
-    setMessage('');
-    setError('');
+    setSaving(true);
 
     const supabase = createClient();
     const results = await Promise.all([
-      supabase
-        .from('app_settings')
-        .upsert({ key: 'display_fields', value: { fields }, updated_at: new Date().toISOString() }),
-      supabase
-        .from('app_settings')
-        .upsert({
-          key: 'offline_checkin',
-          value: { enabled: offline },
-          updated_at: new Date().toISOString(),
-        }),
+      supabase.from('app_settings').upsert({
+        key: 'display_fields',
+        value: { fields },
+        updated_at: new Date().toISOString(),
+      }),
+      supabase.from('app_settings').upsert({
+        key: 'offline_checkin',
+        value: { enabled: offline },
+        updated_at: new Date().toISOString(),
+      }),
     ]);
 
-    setBusyLabel('');
+    setSaving(false);
     const failed = results.find((r) => r.error);
     if (failed) {
-      setError(failed.error.message);
+      toast(failed.error.message, 'error');
       return;
     }
 
-    setMessage('設定已儲存。報到中的裝置重新整理後生效。');
-    router.refresh();
+    toast('設定已儲存。報到中的裝置重新整理後生效。', 'success', 6000);
+    startRefresh(() => router.refresh());
   }
 
   return (
     <>
-      <Busy show={Boolean(busyLabel)} label={busyLabel} />
-
-      {error && <div className="notice notice-error">{error}</div>}
-      {message && <div className="notice notice-ok">{message}</div>}
-
       <div className="card">
         <h3>離線報到</h3>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <input
-            type="checkbox"
-            checked={offline}
-            onChange={(e) => setOffline(e.target.checked)}
-            style={{ width: 16 }}
-          />
+        <Switch checked={offline} onChange={setOffline}>
           允許裝置在沒有網路時繼續報到，恢復連線後自動同步
-        </label>
-        <p style={{ fontSize: 13, color: 'var(--muted)', margin: '10px 0 0' }}>
-          關閉後，斷線時掃碼會直接顯示「離線報到未開放」，不會寫入本機佇列。
-          需要每一筆報到都即時反映在資料庫、或不希望名單留在裝置上時可以關掉；
-          代價是場地訊號一斷，現場就無法報到。
-        </p>
+        </Switch>
       </div>
 
       <div className="card">
         <h3>報到畫面顯示欄位</h3>
-        <p style={{ color: 'var(--muted)', marginTop: 0 }}>
-          由上而下即為畫面順序。姓名、編號、組別是固定欄位，
-          其他欄位請填匯入 Excel 時的欄位標題。
-        </p>
 
         <div className="table-wrap">
           <table>
@@ -140,22 +120,23 @@ export default function SettingsForm({ displayFields, offlineCheckin }) {
                       type="checkbox"
                       checked={field.enabled !== false}
                       onChange={(e) => patch(index, { enabled: e.target.checked })}
-                      style={{ width: 16 }}
                     />
                   </td>
                   <td>{field.key}</td>
                   <td>
                     <input
+                      className="input-sm"
                       value={field.label}
                       onChange={(e) => patch(index, { label: e.target.value })}
-                      style={{ maxWidth: 160, padding: '4px 8px' }}
+                      style={{ maxWidth: 160 }}
                     />
                   </td>
                   <td>
                     <select
+                      className="input-sm"
                       value={field.size || 'md'}
                       onChange={(e) => patch(index, { size: e.target.value })}
-                      style={{ maxWidth: 110, padding: '4px 8px' }}
+                      style={{ maxWidth: 110 }}
                     >
                       {SIZES.map((s) => (
                         <option key={s.value} value={s.value}>
@@ -165,17 +146,19 @@ export default function SettingsForm({ displayFields, offlineCheckin }) {
                     </select>
                   </td>
                   <td style={{ whiteSpace: 'nowrap' }}>
-                    <button className="btn-quiet btn-sm" onClick={() => move(index, -1)}>
-                      上移
-                    </button>{' '}
-                    <button className="btn-quiet btn-sm" onClick={() => move(index, 1)}>
-                      下移
-                    </button>{' '}
-                    {!FIXED.includes(field.key) && (
-                      <button className="btn-quiet btn-sm" onClick={() => removeField(index)}>
-                        移除
-                      </button>
-                    )}
+                    <span style={{ display: 'inline-flex', gap: 6 }}>
+                      <Button size="sm" onClick={() => move(index, -1)}>
+                        上移
+                      </Button>
+                      <Button size="sm" onClick={() => move(index, 1)}>
+                        下移
+                      </Button>
+                      {!FIXED.includes(field.key) && (
+                        <Button size="sm" variant="ghost" onClick={() => removeField(index)}>
+                          移除
+                        </Button>
+                      )}
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -196,14 +179,14 @@ export default function SettingsForm({ displayFields, offlineCheckin }) {
             <span>畫面標籤（留空同上）</span>
             <input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} />
           </label>
-          <button className="btn-quiet">加入</button>
+          <Button type="submit">加入</Button>
         </form>
       </div>
 
       <div style={{ marginTop: 20 }}>
-        <button className="btn-primary" onClick={save} disabled={Boolean(busyLabel)}>
+        <Button variant="primary" loading={saving} onClick={save}>
           儲存設定
-        </button>
+        </Button>
       </div>
     </>
   );

@@ -1,9 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import Button from '@/components/ui/Button';
+import Spinner from '@/components/ui/Spinner';
+import Switch from '@/components/ui/Switch';
+import { useToast } from '@/components/ui/UiProvider';
 
 function formatRange(start, end) {
   if (!start) return '未設定時間';
@@ -19,20 +23,21 @@ function formatRange(start, end) {
 
 export default function SubEventList({ initialEvents, counts }) {
   const router = useRouter();
+  const toast = useToast();
+
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
   const [startsAt, setStartsAt] = useState('');
   const [requireCheckout, setRequireCheckout] = useState(false);
-  const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [refreshing, startRefresh] = useTransition();
 
   async function createEvent(event) {
     event.preventDefault();
-    setError('');
     setBusy(true);
 
     const supabase = createClient();
-    const { error: insertError } = await supabase.from('sub_events').insert({
+    const { error } = await supabase.from('sub_events').insert({
       name: name.trim(),
       location: location.trim() || null,
       starts_at: startsAt ? new Date(startsAt).toISOString() : null,
@@ -40,22 +45,21 @@ export default function SubEventList({ initialEvents, counts }) {
     });
 
     setBusy(false);
-    if (insertError) {
-      setError(insertError.message);
+    if (error) {
+      toast(error.message, 'error');
       return;
     }
 
+    toast(`已建立「${name.trim()}」`, 'success');
     setName('');
     setLocation('');
     setStartsAt('');
     setRequireCheckout(false);
-    router.refresh();
+    startRefresh(() => router.refresh());
   }
 
   return (
     <>
-      {error && <div className="notice notice-error">{error}</div>}
-
       <div className="card">
         <h3>新增子活動</h3>
         <form onSubmit={createEvent}>
@@ -69,10 +73,12 @@ export default function SubEventList({ initialEvents, counts }) {
                 required
               />
             </label>
+
             <label className="field">
               <span>地點</span>
               <input value={location} onChange={(e) => setLocation(e.target.value)} />
             </label>
+
             <label className="field">
               <span>開始時間</span>
               <input
@@ -81,27 +87,26 @@ export default function SubEventList({ initialEvents, counts }) {
                 onChange={(e) => setStartsAt(e.target.value)}
               />
             </label>
-            <label
-              className="field"
-              style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 8 }}
-            >
-              <input
-                type="checkbox"
-                checked={requireCheckout}
-                onChange={(e) => setRequireCheckout(e.target.checked)}
-                style={{ width: 16 }}
-              />
-              <span style={{ margin: 0 }}>需要簽退</span>
-            </label>
-            <button className="btn-primary" disabled={busy}>
-              {busy ? '建立中…' : '建立'}
-            </button>
+
+            <div style={{ paddingBottom: 9 }}>
+              <Switch checked={requireCheckout} onChange={setRequireCheckout}>
+                需要簽退
+              </Switch>
+            </div>
+
+            <Button type="submit" variant="primary" loading={busy}>
+              建立
+            </Button>
           </div>
         </form>
       </div>
 
       <div className="card">
-        <h3>全部子活動（{initialEvents.length}）</h3>
+        <h3>
+          全部子活動（{initialEvents.length}）
+          {refreshing && <Spinner size="sm" className="spinner-inline" />}
+        </h3>
+
         {initialEvents.length === 0 ? (
           <div className="empty">還沒有子活動。用上面的表單建立第一個。</div>
         ) : (
@@ -128,8 +133,20 @@ export default function SubEventList({ initialEvents, counts }) {
                     <td>
                       {counts[ev.id]?.checkedIn ?? 0}／{counts[ev.id]?.total ?? 0} 人
                     </td>
-                    <td>{ev.require_checkout ? '需簽退' : '—'}</td>
-                    <td>{ev.is_active ? '進行中' : '已封存'}</td>
+                    <td>
+                      {ev.require_checkout ? (
+                        <span className="badge badge-info">需簽退</span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td>
+                      {ev.is_active ? (
+                        <span className="badge badge-success">進行中</span>
+                      ) : (
+                        <span className="badge">已封存</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

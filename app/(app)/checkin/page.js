@@ -18,7 +18,6 @@ export default async function CheckinIndexPage() {
     <main className="page">
       <div className="page-head">
         <h1>選擇要報到的子活動</h1>
-        <p>選定後就會進入掃碼畫面。中途可以隨時退回這裡換活動。</p>
       </div>
 
       {(!events || events.length === 0) && (

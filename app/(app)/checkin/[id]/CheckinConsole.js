@@ -22,7 +22,9 @@ import {
   listQueue,
   bumpAttempt,
 } from '@/lib/offline';
-import Busy from '../../Busy';
+import Busy from '@/components/ui/Busy';
+import Button from '@/components/ui/Button';
+import Spinner from '@/components/ui/Spinner';
 
 const ROSTER_SELECT =
   'id, team, extra, checked_in_at, checked_out_at, participants(id, code, name, qr_code, extra)';
@@ -50,6 +52,7 @@ export default function CheckinConsole({
   const [result, setResult] = useState(null);
   const [pending, setPending] = useState(null);
   const [cameraOn, setCameraOn] = useState(false);
+  const [cameraStarting, setCameraStarting] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [keyword, setKeyword] = useState('');
   const [rows, setRows] = useState(roster);
@@ -457,6 +460,7 @@ export default function CheckinConsole({
     }
 
     setCameraError('');
+    setCameraStarting(true);
     try {
       const { Html5Qrcode } = await import('html5-qrcode');
       const scanner = new Html5Qrcode('qr-reader', { verbose: false });
@@ -475,6 +479,7 @@ export default function CheckinConsole({
           : `無法啟動相機：${err?.message || '未知錯誤'}`
       );
     }
+    setCameraStarting(false);
   }
 
   /* ---------------- 手動搜尋 ---------------- */
@@ -519,7 +524,7 @@ export default function CheckinConsole({
           <span className="mode-static">報到模式</span>
         )}
 
-        <Link href="/checkin" className="btn-quiet btn-sm">
+        <Link href="/checkin" className="btn btn-secondary btn-sm">
           換活動
         </Link>
       </div>
@@ -533,9 +538,9 @@ export default function CheckinConsole({
         </span>
 
         {queued > 0 && online && (
-          <button className="btn-quiet btn-sm" onClick={sync} disabled={syncing}>
+          <Button size="sm" loading={syncing} onClick={sync}>
             立即同步
-          </button>
+          </Button>
         )}
 
         {!online && cachedAt && (
@@ -559,23 +564,24 @@ export default function CheckinConsole({
           <div className="camera-box">
             <div id="qr-reader" className={cameraOn ? '' : 'hidden'} />
             {!cameraOn && (
-              <div className="camera-placeholder">
-                條碼槍可直接使用，不需開相機。
-                <br />
-                用手機報到時再開相機。
-              </div>
+              <div className="camera-placeholder">尚未開啟相機</div>
             )}
           </div>
 
           {cameraError && <div className="notice notice-error">{cameraError}</div>}
 
-          <button className="btn-quiet" onClick={toggleCamera}>
+          <Button block loading={cameraStarting} onClick={toggleCamera}>
             {cameraOn ? '關閉相機' : '開啟相機掃碼'}
-          </button>
+          </Button>
         </section>
 
         <section className={`result-pane tone-${view?.tone || 'idle'}`}>
-          {pending ? (
+          {busy && !pending ? (
+            <div className="result-inner idle">
+              <Spinner size="lg" />
+              <p style={{ marginTop: 14 }}>處理中…</p>
+            </div>
+          ) : pending ? (
             <div className="result-inner">
               <h2>{describeResult('too_soon', 'out', pending.data).title}</h2>
               <p className="result-detail">
@@ -583,15 +589,16 @@ export default function CheckinConsole({
                 {describeResult('too_soon', 'out', pending.data).detail}
               </p>
               <div className="result-actions">
-                <button
-                  className="btn-primary"
+                <Button
+                  variant="primary"
+                  loading={busy}
                   onClick={() => submit(pending.value, pending.method, true)}
                 >
                   仍要簽退
-                </button>
-                <button className="btn-quiet" onClick={() => setPending(null)}>
+                </Button>
+                <Button variant="secondary" onClick={() => setPending(null)}>
                   取消
-                </button>
+                </Button>
               </div>
             </div>
           ) : view ? (
@@ -654,8 +661,8 @@ export default function CheckinConsole({
                       {row.team ? ` · ${row.team}` : ''}
                     </em>
                   </span>
-                  <button
-                    className="btn-quiet btn-sm"
+                  <Button
+                    size="sm"
                     disabled={busy}
                     onClick={() => {
                       setKeyword('');
@@ -663,16 +670,12 @@ export default function CheckinConsole({
                     }}
                   >
                     {done ? '已完成' : mode === 'in' ? '手動報到' : '手動簽退'}
-                  </button>
+                  </Button>
                 </li>
               );
             })}
           </ul>
         )}
-
-        <p className="manual-note">
-          手動處理的紀錄會標記為手動，並記下操作者（{profile.display_name}）。
-        </p>
       </section>
     </main>
   );

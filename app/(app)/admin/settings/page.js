@@ -11,7 +11,6 @@ export default async function SettingsPage() {
     <main className="page">
       <div className="page-head">
         <h1>系統設定</h1>
-        <p>這些設定會套用到所有子活動；個別活動另有覆寫時以活動設定為準。</p>
       </div>
 
       <SettingsForm

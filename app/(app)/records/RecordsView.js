@@ -4,7 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { atLeast } from '@/lib/constants';
 import { formatDuration } from '@/lib/attendance';
-import Busy from '../Busy';
+import Button from '@/components/ui/Button';
+import Spinner from '@/components/ui/Spinner';
+import Skeleton from '@/components/ui/Skeleton';
+import Busy from '@/components/ui/Busy';
+import { useToast, useConfirm } from '@/components/ui/UiProvider';
 
 const LOG_SELECT =
   'id, type, method, occurred_at, revoked_at, duplicate_of, operator:app_users!attendance_logs_operator_id_fkey(display_name), registrations!inner(id, team, sub_event_id, participants(code, name))';
@@ -19,6 +23,9 @@ function timeLabel(value) {
 }
 
 export default function RecordsView({ profile, events }) {
+  const toast = useToast();
+  const confirm = useConfirm();
+
   const canSeeAll = atLeast(profile.role, 'staff');
   const canRevoke = atLeast(profile.role, 'lead');
 
@@ -27,9 +34,10 @@ export default function RecordsView({ profile, events }) {
   const [logs, setLogs] = useState([]);
   const [typeFilter, setTypeFilter] = useState('all');
   const [keyword, setKeyword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [firstLoad, setFirstLoad] = useState(true);
   const [busyLabel, setBusyLabel] = useState('');
-  const [error, setError] = useState('');
+  const [revokingId, setRevokingId] = useState(null);
 
   const event = events.find((e) => e.id === eventId) || null;
 
@@ -37,7 +45,6 @@ export default function RecordsView({ profile, events }) {
     async (showSpinner = true) => {
       if (!eventId) return;
       if (showSpinner) setLoading(true);
-      setError('');
 
       const supabase = createClient();
       const [rosterRes, logRes] = await Promise.all([
@@ -55,22 +62,23 @@ export default function RecordsView({ profile, events }) {
       ]);
 
       if (rosterRes.error || logRes.error) {
-        setError((rosterRes.error || logRes.error).message);
+        toast((rosterRes.error || logRes.error).message, 'error');
       } else {
         setRoster(rosterRes.data || []);
         setLogs(logRes.data || []);
       }
 
       setLoading(false);
+      setFirstLoad(false);
     },
-    [eventId]
+    [eventId, toast]
   );
 
   useEffect(() => {
+    setFirstLoad(true);
     load();
   }, [load]);
 
-  // 現場報到時自動更新
   useEffect(() => {
     if (!eventId || !canSeeAll) return undefined;
     const supabase = createClient();
@@ -128,24 +136,28 @@ export default function RecordsView({ profile, events }) {
   }, [logs, typeFilter, keyword]);
 
   async function revoke(log) {
-    const reason = window.prompt(
-      `撤銷 ${log.registrations?.participants?.name} 的${log.type === 'in' ? '報到' : '簽退'}紀錄？可填原因：`,
-      ''
-    );
+    const reason = await confirm({
+      title: `撤銷${log.type === 'in' ? '報到' : '簽退'}紀錄`,
+      description: `${log.registrations?.participants?.name}（${log.registrations?.participants?.code}），於 ${timeLabel(log.occurred_at)}。撤銷報到會連帶撤銷該人的簽退。`,
+      prompt: '撤銷原因（可留空）',
+      confirmLabel: '撤銷',
+      variant: 'destructive',
+    });
     if (reason === null) return;
 
-    setBusyLabel('撤銷中…');
+    setRevokingId(log.id);
     const supabase = createClient();
-    const { data, error: rpcError } = await supabase.rpc('revoke_attendance', {
+    const { data, error } = await supabase.rpc('revoke_attendance', {
       p_log_id: log.id,
       p_reason: reason || null,
     });
-    setBusyLabel('');
+    setRevokingId(null);
 
-    if (rpcError || data?.status !== 'ok') {
-      setError(rpcError?.message || '撤銷失敗');
+    if (error || data?.status !== 'ok') {
+      toast(error?.message || '撤銷失敗', 'error');
       return;
     }
+    toast('已撤銷', 'success');
     load(false);
   }
 
@@ -184,8 +196,9 @@ export default function RecordsView({ profile, events }) {
       const book = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(book, sheet, '報到結果');
       XLSX.writeFile(book, `${event?.name || '報到結果'}.xlsx`);
+      toast(`已匯出 ${rows.length} 筆`, 'success');
     } catch (err) {
-      setError(`匯出失敗：${err.message}`);
+      toast(`匯出失敗：${err.message}`, 'error');
     }
     setBusyLabel('');
   }
@@ -201,8 +214,6 @@ export default function RecordsView({ profile, events }) {
   return (
     <>
       <Busy show={Boolean(busyLabel)} label={busyLabel} />
-
-      {error && <div className="notice notice-error">{error}</div>}
 
       <div className="card">
         <div className="row">
@@ -233,9 +244,9 @@ export default function RecordsView({ profile, events }) {
           </label>
 
           {canSeeAll && (
-            <button className="btn-quiet" onClick={exportXlsx} disabled={loading}>
+            <Button onClick={exportXlsx} disabled={loading}>
               匯出 Excel
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -244,64 +255,82 @@ export default function RecordsView({ profile, events }) {
         <div className="card">
           <h3>
             進度
-            {loading && <span className="spinner inline" aria-label="更新中" />}
+            {loading && !firstLoad && <Spinner size="sm" className="spinner-inline" />}
           </h3>
 
-          <div className="stat-grid">
-            <div className="stat">
-              <span className="stat-value">
-                {stats.checkedIn}
-                <em>／{stats.total}</em>
-              </span>
-              <span className="stat-label">已報到（{stats.rate}%）</span>
+          {firstLoad ? (
+            <div className="stat-grid">
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} height={74} />
+              ))}
             </div>
-
-            {event?.require_checkout && (
-              <>
+          ) : (
+            <>
+              <div className="stat-grid">
                 <div className="stat">
-                  <span className="stat-value">{stats.present}</span>
-                  <span className="stat-label">目前在場</span>
+                  <span className="stat-value">
+                    {stats.checkedIn}
+                    <em>／{stats.total}</em>
+                  </span>
+                  <span className="stat-label">已報到（{stats.rate}%）</span>
                 </div>
+
+                {event?.require_checkout && (
+                  <>
+                    <div className="stat">
+                      <span className="stat-value">{stats.present}</span>
+                      <span className="stat-label">目前在場</span>
+                    </div>
+                    <div className="stat">
+                      <span className="stat-value">{stats.checkedOut}</span>
+                      <span className="stat-label">已簽退</span>
+                    </div>
+                  </>
+                )}
+
                 <div className="stat">
-                  <span className="stat-value">{stats.checkedOut}</span>
-                  <span className="stat-label">已簽退</span>
+                  <span className="stat-value">{stats.total - stats.checkedIn}</span>
+                  <span className="stat-label">尚未報到</span>
                 </div>
-              </>
-            )}
-
-            <div className="stat">
-              <span className="stat-value">{stats.total - stats.checkedIn}</span>
-              <span className="stat-label">尚未報到</span>
-            </div>
-          </div>
-
-          <div className="team-bars">
-            {stats.teams.map(([team, item]) => (
-              <div key={team} className="team-bar">
-                <span className="team-name">{team}</span>
-                <span className="bar">
-                  <span
-                    className="bar-fill"
-                    style={{ width: `${item.total ? (item.checkedIn / item.total) * 100 : 0}%` }}
-                  />
-                </span>
-                <span className="team-count">
-                  {item.checkedIn}／{item.total}
-                </span>
               </div>
-            ))}
-          </div>
+
+              <div className="team-bars">
+                {stats.teams.map(([team, item]) => (
+                  <div key={team} className="team-bar">
+                    <span className="team-name">{team}</span>
+                    <span className="bar">
+                      <span
+                        className="bar-fill"
+                        style={{
+                          width: `${item.total ? (item.checkedIn / item.total) * 100 : 0}%`,
+                        }}
+                      />
+                    </span>
+                    <span className="team-count">
+                      {item.checkedIn}／{item.total}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
       <div className="card">
         <h3>
           逐筆紀錄（{visibleLogs.length}）
-          {loading && <span className="spinner inline" aria-label="載入中" />}
+          {loading && !firstLoad && <Spinner size="sm" className="spinner-inline" />}
         </h3>
 
-        {visibleLogs.length === 0 ? (
-          <div className="empty">{loading ? '載入中…' : '沒有符合條件的紀錄。'}</div>
+        {firstLoad ? (
+          <div className="skeleton-stack">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} height={38} />
+            ))}
+          </div>
+        ) : visibleLogs.length === 0 ? (
+          <div className="empty">沒有符合條件的紀錄。</div>
         ) : (
           <div className="table-wrap">
             <table>
@@ -319,7 +348,10 @@ export default function RecordsView({ profile, events }) {
               </thead>
               <tbody>
                 {visibleLogs.map((log) => (
-                  <tr key={log.id} className={log.revoked_at || log.duplicate_of ? 'muted-row' : ''}>
+                  <tr
+                    key={log.id}
+                    className={log.revoked_at || log.duplicate_of ? 'muted-row' : ''}
+                  >
                     <td>{timeLabel(log.occurred_at)}</td>
                     <td>{log.registrations?.participants?.name}</td>
                     <td>{log.registrations?.participants?.code}</td>
@@ -334,9 +366,13 @@ export default function RecordsView({ profile, events }) {
                     {canRevoke && (
                       <td style={{ textAlign: 'right' }}>
                         {!log.revoked_at && !log.duplicate_of && (
-                          <button className="btn-quiet btn-sm" onClick={() => revoke(log)}>
+                          <Button
+                            size="sm"
+                            loading={revokingId === log.id}
+                            onClick={() => revoke(log)}
+                          >
                             撤銷
-                          </button>
+                          </Button>
                         )}
                       </td>
                     )}

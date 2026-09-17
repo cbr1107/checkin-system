@@ -1,35 +1,32 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  FIELD_OPTIONS,
-  guessField,
-  buildRows,
-  inspectRows,
-} from '@/lib/roster';
-import Busy from '../../Busy';
+import { FIELD_OPTIONS, guessField, buildRows, inspectRows } from '@/lib/roster';
+import Button from '@/components/ui/Button';
+import Busy from '@/components/ui/Busy';
+import { useToast } from '@/components/ui/UiProvider';
 
 export default function ImportWizard({ subEventId }) {
   const router = useRouter();
-  const [step, setStep] = useState('idle'); // idle | mapping | done
+  const toast = useToast();
+
+  const [step, setStep] = useState('idle');
   const [filename, setFilename] = useState('');
   const [headers, setHeaders] = useState([]);
   const [rawRows, setRawRows] = useState([]);
   const [mapping, setMapping] = useState({});
-  const [error, setError] = useState('');
   const [result, setResult] = useState(null);
-  const [busy, setBusy] = useState(false);
   const [busyLabel, setBusyLabel] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [, startRefresh] = useTransition();
 
   async function handleFile(event) {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    setError('');
     setResult(null);
     setBusyLabel('讀取檔案…');
-    setBusy(true);
 
     try {
       const XLSX = await import('xlsx');
@@ -39,8 +36,8 @@ export default function ImportWizard({ subEventId }) {
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
 
       if (rows.length === 0) {
-        setError('這個檔案的第一個工作表沒有資料。');
-        setBusy(false);
+        toast('這個檔案的第一個工作表沒有資料', 'error');
+        setBusyLabel('');
         return;
       }
 
@@ -62,10 +59,9 @@ export default function ImportWizard({ subEventId }) {
       setMapping(guessed);
       setStep('mapping');
     } catch (err) {
-      setError(`讀取檔案失敗：${err.message}`);
+      toast(`讀取檔案失敗：${err.message}`, 'error');
     }
 
-    setBusy(false);
     setBusyLabel('');
     event.target.value = '';
   }
@@ -77,9 +73,8 @@ export default function ImportWizard({ subEventId }) {
 
   async function submitImport() {
     if (!prepared || prepared.valid.length === 0) return;
-    setBusy(true);
+    setImporting(true);
     setBusyLabel(`匯入 ${prepared.valid.length} 筆…`);
-    setError('');
 
     const res = await fetch(`/api/sub-events/${subEventId}/import`, {
       method: 'POST',
@@ -87,17 +82,19 @@ export default function ImportWizard({ subEventId }) {
       body: JSON.stringify({ filename, mapping, rows: prepared.valid }),
     });
     const json = await res.json();
-    setBusy(false);
+
+    setImporting(false);
     setBusyLabel('');
 
     if (!res.ok) {
-      setError(json.error || '匯入失敗');
+      toast(json.error || '匯入失敗', 'error');
       return;
     }
 
     setResult(json);
     setStep('done');
-    router.refresh();
+    toast(`匯入完成：新增 ${json.created} 筆、更新 ${json.updated} 筆`, 'success');
+    startRefresh(() => router.refresh());
   }
 
   function reset() {
@@ -113,25 +110,19 @@ export default function ImportWizard({ subEventId }) {
       <Busy show={Boolean(busyLabel)} label={busyLabel} />
       <h3>匯入名單</h3>
 
-      {error && <div className="notice notice-error">{error}</div>}
-
       {step === 'idle' && (
         <>
-          <label className="field" style={{ maxWidth: 360 }}>
+          <label className="field" style={{ maxWidth: 380 }}>
             <span>選擇 Excel 或 CSV 檔（讀取第一個工作表）</span>
-            <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFile} disabled={busy} />
+            <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFile} />
           </label>
-          <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>
-            第一列請放欄位標題。至少要有姓名與編號兩欄；沒有另外提供 QR 欄位時，
-            系統會用編號當作 QR 內容。其他欄位可以一併帶入，報到畫面能選擇顯示。
-          </p>
         </>
       )}
 
       {step === 'mapping' && prepared && (
         <>
-          <p style={{ marginTop: 0, color: 'var(--muted)' }}>
-            {filename} · 共 {rawRows.length} 列。請確認欄位對應。
+          <p className="hint" style={{ marginTop: 0, marginBottom: 14 }}>
+            {filename} · {rawRows.length} 列
           </p>
 
           <div className="table-wrap" style={{ marginBottom: 16 }}>
@@ -147,15 +138,17 @@ export default function ImportWizard({ subEventId }) {
                 {headers.map((header) => (
                   <tr key={header}>
                     <td>{header}</td>
-                    <td style={{ color: 'var(--muted)' }}>
+                    <td style={{ color: 'var(--muted-foreground)' }}>
                       {String(rawRows[0][header] ?? '').slice(0, 30) || '—'}
                     </td>
                     <td>
                       <select
+                        className="input-sm"
                         value={mapping[header]}
                         onChange={(e) =>
                           setMapping((prev) => ({ ...prev, [header]: e.target.value }))
                         }
+                        style={{ maxWidth: 180 }}
                       >
                         {FIELD_OPTIONS.map((opt) => (
                           <option key={opt.value} value={opt.value}>
@@ -171,15 +164,11 @@ export default function ImportWizard({ subEventId }) {
           </div>
 
           {missingRequired && (
-            <div className="notice notice-error">
-              姓名與編號都必須各對應到一個欄位。
-            </div>
+            <div className="notice notice-error">姓名與編號都必須各對應到一個欄位。</div>
           )}
 
           {!hasQrColumn && !missingRequired && (
-            <div className="notice notice-info">
-              沒有對應 QR 欄位，將以編號作為 QR 內容。
-            </div>
+            <div className="notice notice-info">沒有對應 QR 欄位，將以編號作為 QR 內容。</div>
           )}
 
           {prepared.problems.length > 0 && (
@@ -193,27 +182,26 @@ export default function ImportWizard({ subEventId }) {
                     {p.code ? `（${p.code}）` : ''}
                   </li>
                 ))}
-                {prepared.problems.length > 8 && <li>其餘 {prepared.problems.length - 8} 列略。</li>}
+                {prepared.problems.length > 8 && (
+                  <li>其餘 {prepared.problems.length - 8} 列略。</li>
+                )}
               </ul>
             </div>
           )}
 
-          <p style={{ color: 'var(--muted)' }}>
-            可匯入 {prepared.valid.length} 筆。已存在的編號會沿用同一個人與同一張 QR，
-            只更新這個子活動的組別與欄位。
-          </p>
 
           <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              className="btn-primary is-busy"
+            <Button
+              variant="primary"
+              loading={importing}
               onClick={submitImport}
-              disabled={busy || missingRequired || prepared.valid.length === 0}
+              disabled={missingRequired || prepared.valid.length === 0}
             >
-              {busy ? '匯入中…' : `匯入 ${prepared.valid.length} 筆`}
-            </button>
-            <button className="btn-quiet" onClick={reset} disabled={busy}>
+              匯入 {prepared.valid.length} 筆
+            </Button>
+            <Button onClick={reset} disabled={importing}>
               取消
-            </button>
+            </Button>
           </div>
         </>
       )}
@@ -238,9 +226,7 @@ export default function ImportWizard({ subEventId }) {
             </div>
           )}
 
-          <button className="btn-quiet" onClick={reset}>
-            再匯入一個檔案
-          </button>
+          <Button onClick={reset}>再匯入一個檔案</Button>
         </>
       )}
     </div>

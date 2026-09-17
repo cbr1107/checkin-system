@@ -1,11 +1,15 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { atLeast } from '@/lib/constants';
+import Button from '@/components/ui/Button';
+import Spinner from '@/components/ui/Spinner';
+import Switch from '@/components/ui/Switch';
+import Busy from '@/components/ui/Busy';
+import { useToast, useConfirm } from '@/components/ui/UiProvider';
 import ImportWizard from './ImportWizard';
-import Busy from '../../Busy';
 
 function toLocalInput(value) {
   if (!value) return '';
@@ -24,22 +28,26 @@ export default function SubEventDetail({
   canEdit,
 }) {
   const router = useRouter();
+  const toast = useToast();
+  const confirm = useConfirm();
   const isLead = atLeast(profile.role, 'lead');
 
   const [form, setForm] = useState({
     name: event.name,
     location: event.location || '',
-    description: event.description || '',
     starts_at: toLocalInput(event.starts_at),
     ends_at: toLocalInput(event.ends_at),
     require_checkout: event.require_checkout,
     min_stay_minutes: event.min_stay_minutes,
     is_active: event.is_active,
   });
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [busyLabel, setBusyLabel] = useState('');
+  const [rowBusy, setRowBusy] = useState(null);
   const [keyword, setKeyword] = useState('');
+  const [refreshing, startRefresh] = useTransition();
+
+  const reload = () => startRefresh(() => router.refresh());
 
   const teams = useMemo(() => {
     const set = new Set(registrations.map((r) => r.team).filter(Boolean));
@@ -63,17 +71,14 @@ export default function SubEventDetail({
 
   async function saveSettings(e) {
     e.preventDefault();
-    setError('');
-    setMessage('');
-    setBusy(true);
+    setSaving(true);
 
     const supabase = createClient();
-    const { error: updateError } = await supabase
+    const { error } = await supabase
       .from('sub_events')
       .update({
         name: form.name.trim(),
         location: form.location.trim() || null,
-        description: form.description.trim() || null,
         starts_at: form.starts_at ? new Date(form.starts_at).toISOString() : null,
         ends_at: form.ends_at ? new Date(form.ends_at).toISOString() : null,
         require_checkout: form.require_checkout,
@@ -82,92 +87,118 @@ export default function SubEventDetail({
       })
       .eq('id', event.id);
 
-    setBusy(false);
-    if (updateError) setError(updateError.message);
+    setSaving(false);
+    if (error) toast(error.message, 'error');
     else {
-      setMessage('設定已儲存。');
-      router.refresh();
+      toast('設定已儲存', 'success');
+      reload();
     }
   }
 
   async function removeEvent() {
-    if (
-      !window.confirm(
-        `刪除「${event.name}」？名單與報到紀錄會一併刪除，此操作無法復原。`
-      )
-    )
-      return;
+    const agreed = await confirm({
+      title: '刪除子活動',
+      description: `刪除「${event.name}」？名單與報到紀錄會一併刪除，此操作無法復原。`,
+      confirmLabel: '刪除',
+      variant: 'destructive',
+    });
+    if (!agreed) return;
 
+    setBusyLabel('刪除中…');
     const supabase = createClient();
-    const { error: deleteError } = await supabase
-      .from('sub_events')
-      .delete()
-      .eq('id', event.id);
-    if (deleteError) setError(deleteError.message);
+    const { error } = await supabase.from('sub_events').delete().eq('id', event.id);
+    setBusyLabel('');
+
+    if (error) toast(error.message, 'error');
     else router.push('/sub-events');
   }
 
   async function removeRegistration(row) {
-    if (!window.confirm(`把 ${row.participants?.name} 移出這個子活動的名單？`)) return;
+    const agreed = await confirm({
+      title: '移出名單',
+      description: `把 ${row.participants?.name} 移出「${event.name}」的名單？`,
+      confirmLabel: '移除',
+      variant: 'destructive',
+    });
+    if (!agreed) return;
 
+    setRowBusy(row.id);
     const supabase = createClient();
-    const { error: deleteError } = await supabase
-      .from('registrations')
-      .delete()
-      .eq('id', row.id);
-    if (deleteError) setError(deleteError.message);
-    else router.refresh();
+    const { error } = await supabase.from('registrations').delete().eq('id', row.id);
+    setRowBusy(null);
+
+    if (error) toast(error.message, 'error');
+    else reload();
   }
 
   async function updateTeam(row, team) {
+    setRowBusy(row.id);
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from('registrations')
       .update({ team: team.trim() || null })
       .eq('id', row.id);
-    router.refresh();
+    setRowBusy(null);
+
+    if (error) toast(error.message, 'error');
+    else reload();
   }
 
   async function undoBatch(batch) {
-    if (
-      !window.confirm(
-        `復原這次匯入？會移除該批次帶進來的 ${batch.created_count} 筆名單（已報到者也會被移除）。`
-      )
-    )
-      return;
+    const agreed = await confirm({
+      title: '復原這次匯入',
+      description: `會移除該批次帶進來的 ${batch.created_count} 筆名單，已報到者也會被移除。`,
+      confirmLabel: '復原',
+      variant: 'destructive',
+    });
+    if (!agreed) return;
 
+    setBusyLabel('復原匯入…');
     const supabase = createClient();
     await supabase.from('registrations').delete().eq('import_batch_id', batch.id);
     await supabase
       .from('import_batches')
       .update({ undone_at: new Date().toISOString(), undone_by: profile.id })
       .eq('id', batch.id);
-    router.refresh();
+    setBusyLabel('');
+    toast('已復原這批匯入', 'success');
+    reload();
   }
 
   async function addGrant(userId) {
     if (!userId) return;
+    setBusyLabel('設定授權…');
     const supabase = createClient();
-    const { error: grantError } = await supabase.from('sub_event_grants').insert({
+    const { error } = await supabase.from('sub_event_grants').insert({
       sub_event_id: event.id,
       user_id: userId,
       can_edit_roster: true,
       granted_by: profile.id,
     });
-    if (grantError) setError(grantError.message);
-    else router.refresh();
+    setBusyLabel('');
+
+    if (error) toast(error.message, 'error');
+    else {
+      toast('已授權', 'success');
+      reload();
+    }
   }
 
   async function removeGrant(grantId) {
+    setBusyLabel('取消授權…');
     const supabase = createClient();
     await supabase.from('sub_event_grants').delete().eq('id', grantId);
-    router.refresh();
+    setBusyLabel('');
+    toast('已取消授權', 'success');
+    reload();
   }
 
   const grantedIds = new Set(grants.map((g) => g.user_id));
 
   return (
     <main className="page">
+      <Busy show={Boolean(busyLabel)} label={busyLabel} />
+
       <div className="page-head">
         <h1>{event.name}</h1>
         <p>
@@ -176,11 +207,6 @@ export default function SubEventDetail({
           {event.require_checkout ? ' · 需要簽退' : ''}
         </p>
       </div>
-
-      <Busy show={busy} label="儲存中…" />
-
-      {error && <div className="notice notice-error">{error}</div>}
-      {message && <div className="notice notice-ok">{message}</div>}
 
       {isLead && (
         <div className="card">
@@ -204,7 +230,7 @@ export default function SubEventDetail({
               </label>
             </div>
 
-            <div className="row" style={{ marginTop: 16 }}>
+            <div className="row" style={{ marginTop: 14 }}>
               <label className="field">
                 <span>開始時間</span>
                 <input
@@ -224,18 +250,15 @@ export default function SubEventDetail({
             </div>
 
             <div className="row" style={{ marginTop: 16, alignItems: 'center' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={form.require_checkout}
-                  onChange={(e) => update({ require_checkout: e.target.checked })}
-                  style={{ width: 16 }}
-                />
+              <Switch
+                checked={form.require_checkout}
+                onChange={(v) => update({ require_checkout: v })}
+              >
                 需要簽退
-              </label>
+              </Switch>
 
               {form.require_checkout && (
-                <label className="field" style={{ maxWidth: 220 }}>
+                <label className="field" style={{ maxWidth: 240 }}>
                   <span>最短停留（分鐘，未達會跳確認）</span>
                   <input
                     type="number"
@@ -246,24 +269,18 @@ export default function SubEventDetail({
                 </label>
               )}
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={form.is_active}
-                  onChange={(e) => update({ is_active: e.target.checked })}
-                  style={{ width: 16 }}
-                />
+              <Switch checked={form.is_active} onChange={(v) => update({ is_active: v })}>
                 進行中
-              </label>
+              </Switch>
             </div>
 
             <div style={{ marginTop: 20, display: 'flex', gap: 10 }}>
-              <button className="btn-primary" disabled={busy}>
-                {busy ? '儲存中…' : '儲存設定'}
-              </button>
-              <button type="button" className="btn-danger" onClick={removeEvent}>
+              <Button type="submit" variant="primary" loading={saving}>
+                儲存設定
+              </Button>
+              <Button variant="destructive" onClick={removeEvent}>
                 刪除子活動
-              </button>
+              </Button>
             </div>
           </form>
         </div>
@@ -272,7 +289,10 @@ export default function SubEventDetail({
       {canEdit && <ImportWizard subEventId={event.id} />}
 
       <div className="card">
-        <h3>名單（{filtered.length}／{registrations.length}）</h3>
+        <h3>
+          名單（{filtered.length}／{registrations.length}）
+          {refreshing && <Spinner size="sm" className="spinner-inline" />}
+        </h3>
 
         <div className="row" style={{ marginBottom: 16 }}>
           <label className="field">
@@ -304,45 +324,47 @@ export default function SubEventDetail({
                     <td>
                       {canEdit ? (
                         <input
+                          className="input-sm"
                           defaultValue={row.team || ''}
+                          disabled={rowBusy === row.id}
                           onBlur={(e) => {
                             if (e.target.value !== (row.team || '')) {
                               updateTeam(row, e.target.value);
                             }
                           }}
-                          style={{ maxWidth: 120, padding: '4px 8px' }}
+                          style={{ maxWidth: 120 }}
                         />
                       ) : (
                         row.team || '—'
                       )}
                     </td>
-                    <td style={{ color: 'var(--muted)' }}>{row.participants?.qr_code}</td>
+                    <td style={{ color: 'var(--muted-foreground)' }}>
+                      {row.participants?.qr_code}
+                    </td>
                     <td>
-                      {row.checked_out_at
-                        ? '已簽退'
-                        : row.checked_in_at
-                          ? '已報到'
-                          : '未報到'}
+                      {row.checked_out_at ? (
+                        <span className="badge badge-info">已簽退</span>
+                      ) : row.checked_in_at ? (
+                        <span className="badge badge-success">已報到</span>
+                      ) : (
+                        <span className="badge">未報到</span>
+                      )}
                     </td>
                     {canEdit && (
                       <td style={{ textAlign: 'right' }}>
-                        <button
-                          className="btn-quiet btn-sm"
+                        <Button
+                          size="sm"
+                          loading={rowBusy === row.id}
                           onClick={() => removeRegistration(row)}
                         >
                           移除
-                        </button>
+                        </Button>
                       </td>
                     )}
                   </tr>
                 ))}
               </tbody>
             </table>
-            {filtered.length > 500 && (
-              <p style={{ color: 'var(--muted)', fontSize: 13 }}>
-                為維持頁面速度，只顯示前 500 筆。請用搜尋縮小範圍。
-              </p>
-            )}
           </div>
         )}
       </div>
@@ -370,15 +392,12 @@ export default function SubEventDetail({
                     <td>{batch.updated_count}</td>
                     <td style={{ textAlign: 'right' }}>
                       {batch.undone_at ? (
-                        <span style={{ color: 'var(--muted)' }}>已復原</span>
+                        <span className="badge">已復原</span>
                       ) : (
                         canEdit && (
-                          <button
-                            className="btn-quiet btn-sm"
-                            onClick={() => undoBatch(batch)}
-                          >
+                          <Button size="sm" onClick={() => undoBatch(batch)}>
                             復原這批
-                          </button>
+                          </Button>
                         )
                       )}
                     </td>
@@ -395,9 +414,7 @@ export default function SubEventDetail({
           <h3>授權註冊組員管理名單</h3>
 
           {grants.length === 0 ? (
-            <p style={{ color: 'var(--muted)', marginTop: 0 }}>
-              目前沒有授權任何組員。只有註冊長以上能編輯這份名單。
-            </p>
+            <div className="empty">目前沒有授權任何組員。</div>
           ) : (
             <div className="table-wrap" style={{ marginBottom: 16 }}>
               <table>
@@ -414,12 +431,9 @@ export default function SubEventDetail({
                       <td>{grant.app_users?.display_name}</td>
                       <td>{grant.app_users?.account}</td>
                       <td style={{ textAlign: 'right' }}>
-                        <button
-                          className="btn-quiet btn-sm"
-                          onClick={() => removeGrant(grant.id)}
-                        >
+                        <Button size="sm" onClick={() => removeGrant(grant.id)}>
                           取消授權
-                        </button>
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -428,7 +442,7 @@ export default function SubEventDetail({
             </div>
           )}
 
-          <label className="field" style={{ maxWidth: 280 }}>
+          <label className="field" style={{ maxWidth: 300 }}>
             <span>加入註冊組員</span>
             <select
               value=""

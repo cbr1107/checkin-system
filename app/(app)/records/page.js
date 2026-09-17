@@ -19,11 +19,6 @@ export default async function RecordsPage() {
     <main className="page">
       <div className="page-head">
         <h1>報到紀錄</h1>
-        <p>
-          {atLeast(profile.role, 'staff')
-            ? '選擇子活動查看即時進度與逐筆紀錄。畫面會隨現場報到自動更新。'
-            : '這裡顯示你自己經手的報到紀錄。'}
-        </p>
       </div>
 
       <RecordsView profile={profile} events={events || []} />

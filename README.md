@@ -3,7 +3,7 @@
 臺北醫學大學楓杏醫學青年服務團 — 子活動現場報到 / 簽退系統。
 Next.js 14（App Router）+ Supabase。
 
-目前版本：**v0.5.0**（全部五個階段完成）
+目前版本：**v0.6.0**（五個階段完成，UI 全面改版）
 
 ---
 
@@ -146,3 +146,34 @@ npm run dev
   不寫入本機佇列。
 - **報到畫面顯示欄位**：勾選要顯示的欄位、調整標籤、字級與順序。
   除了姓名／編號／組別，可加入匯入 Excel 時帶進來的任何欄位（填該欄的標題）。
+
+
+---
+
+## 九、介面
+
+`components/ui/` 是一組以原生 CSS 實作的元件，token 命名沿用 shadcn 的慣例
+（`--background` / `--foreground` / `--muted` / `--border` / `--ring`…），
+焦點與鍵盤行為參考 React Aria，骨架的 shimmer 參考 Magic UI。
+沒有引入 Tailwind，樣式集中在 `app/globals.css`。
+
+| 元件 | 用途 |
+|---|---|
+| `Button` | 唯一的按鈕入口。`loading` 時就地轉圈並自動停用 |
+| `Spinner` / `Skeleton` | 局部更新與首次載入 |
+| `Busy` | 長時間動作的全螢幕提示（匯入、同步、匯出） |
+| `Switch` | 取代散落的 checkbox |
+| `UiProvider` | 提供 `useToast()` 與 `useConfirm()` |
+
+**載入提示分四層**
+
+1. `NavProgress` — 點下連結當下就出現頂端進度條
+2. `loading.js` — 換頁時顯示骨架，不是空白畫面
+3. `Button loading` — 按鈕就地轉圈，防止重複送出
+4. `Busy` — 匯入、同步、匯出這類長動作的全螢幕提示
+
+**深色模式**：右上角可切換，記在 `localStorage`，預設跟隨系統。
+夜烤這種場合整片白畫面很刺眼。
+
+**對話框**：`useConfirm()` 取代 `window.confirm` 與 `window.prompt`——
+原生對話框會凍結整個分頁，掃碼輸入在那段期間會遺失。

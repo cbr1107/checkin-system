@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { accountToEmail } from '@/lib/account';
+import Button from '@/components/ui/Button';
 
 export default function LoginForm({ initialError }) {
   const router = useRouter();
@@ -50,10 +51,9 @@ export default function LoginForm({ initialError }) {
       return;
     }
 
+    // 保持 busy：導頁需要時間，這段不能讓按鈕看起來可以再按
     router.push(
-      profile.must_change_password
-        ? '/change-password'
-        : params.get('next') || '/dashboard'
+      profile.must_change_password ? '/change-password' : params.get('next') || '/dashboard'
     );
     router.refresh();
   }
@@ -61,7 +61,6 @@ export default function LoginForm({ initialError }) {
   return (
     <form className="auth-form" onSubmit={handleSubmit}>
       <h2>登入</h2>
-      <p className="lede">請使用管理員發給你的帳號登入。</p>
 
       {error && <div className="notice notice-error">{error}</div>}
 
@@ -89,13 +88,9 @@ export default function LoginForm({ initialError }) {
         />
       </label>
 
-      <button className="btn-primary" style={{ width: '100%' }} disabled={busy}>
-        {busy ? '登入中…' : '登入'}
-      </button>
-
-      <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 20 }}>
-        忘記密碼請聯絡系統管理員或註冊長重設。
-      </p>
+      <Button type="submit" variant="primary" size="lg" block loading={busy}>
+        登入
+      </Button>
     </form>
   );
 }

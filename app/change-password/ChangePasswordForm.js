@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { accountToEmail } from '@/lib/account';
+import Button from '@/components/ui/Button';
 
 const MIN_LENGTH = 8;
 
@@ -35,7 +36,6 @@ export default function ChangePasswordForm({ account, displayName, forced }) {
     setBusy(true);
     const supabase = createClient();
 
-    // 非強制變更時，先用舊密碼重新驗證
     if (!forced) {
       const { error: reauthError } = await supabase.auth.signInWithPassword({
         email: accountToEmail(account),
@@ -59,10 +59,7 @@ export default function ChangePasswordForm({ account, displayName, forced }) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    await supabase
-      .from('app_users')
-      .update({ must_change_password: false })
-      .eq('id', user.id);
+    await supabase.from('app_users').update({ must_change_password: false }).eq('id', user.id);
 
     router.push('/dashboard');
     router.refresh();
@@ -113,9 +110,9 @@ export default function ChangePasswordForm({ account, displayName, forced }) {
         />
       </label>
 
-      <button className="btn-primary" style={{ width: '100%' }} disabled={busy}>
-        {busy ? '儲存中…' : '儲存新密碼'}
-      </button>
+      <Button type="submit" variant="primary" size="lg" block loading={busy}>
+        儲存新密碼
+      </Button>
     </form>
   );
 }

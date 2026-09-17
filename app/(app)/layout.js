@@ -1,9 +1,13 @@
-import Link from 'next/link';
 import { headers } from 'next/headers';
 import { requireUser } from '@/lib/auth';
 import { ROLE_LABELS, APP_VERSION, APP_VERSION_DATE, atLeast } from '@/lib/constants';
+import UiProvider from '@/components/ui/UiProvider';
 import SignOutButton from './SignOutButton';
 import OfflineReady from './OfflineReady';
+import NavProgress from './NavProgress';
+import NavLinks from './NavLinks';
+import ThemeToggle from './ThemeToggle';
+import IdleProvider, { IdleCountdown } from './IdleLogout';
 
 function clientIp() {
   const h = headers();
@@ -26,29 +30,29 @@ export default async function AppLayout({ children }) {
   ].filter((l) => atLeast(profile.role, l.min));
 
   return (
-    <>
-      <header className="topbar">
-        <span className="brand">現場報到</span>
-        <nav>
-          {links.map((l) => (
-            <Link key={l.href} href={l.href}>
-              {l.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="who">
-          <span>{profile.display_name}</span>
-          <span className="role-chip">{ROLE_LABELS[profile.role]}</span>
-          <SignOutButton />
-        </div>
-      </header>
+    <UiProvider>
+      <IdleProvider>
+        <NavProgress />
 
-      {children}
-      <OfflineReady />
+        <header className="topbar">
+          <span className="brand">現場報到</span>
+          <NavLinks links={links} />
+          <div className="who">
+            <IdleCountdown />
+            <span className="who-name">{profile.display_name}</span>
+            <span className="badge">{ROLE_LABELS[profile.role]}</span>
+            <ThemeToggle />
+            <SignOutButton />
+          </div>
+        </header>
 
-      <span className="version">
-        {APP_VERSION} · {APP_VERSION_DATE} · IP {ip}
-      </span>
-    </>
+        {children}
+        <OfflineReady />
+
+        <span className="version">
+          {APP_VERSION} · {APP_VERSION_DATE} · IP {ip}
+        </span>
+      </IdleProvider>
+    </UiProvider>
   );
 }

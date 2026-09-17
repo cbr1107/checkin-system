@@ -1,31 +1,33 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ROLE_LABELS } from '@/lib/constants';
-import Busy from '../../Busy';
+import Button from '@/components/ui/Button';
+import Spinner from '@/components/ui/Spinner';
+import { useToast, useConfirm } from '@/components/ui/UiProvider';
 
 export default function UserManager({ me, initialUsers, creatableRoles }) {
   const router = useRouter();
+  const toast = useToast();
+  const confirm = useConfirm();
+
   const [account, setAccount] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState(creatableRoles[0] || 'checkin');
-  const [busy, setBusy] = useState(false);
-  const [busyLabel, setBusyLabel] = useState('');
-  const [error, setError] = useState('');
-  const [ok, setOk] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [actingId, setActingId] = useState(null);
+  const [refreshing, startRefresh] = useTransition();
 
   const users = initialUsers;
 
   function reload() {
-    router.refresh();
+    startRefresh(() => router.refresh());
   }
 
   async function createUser(event) {
     event.preventDefault();
-    setError('');
-    setOk('');
-    setBusy(true);
+    setCreating(true);
 
     const res = await fetch('/api/admin/users', {
       method: 'POST',
@@ -33,42 +35,47 @@ export default function UserManager({ me, initialUsers, creatableRoles }) {
       body: JSON.stringify({ account, display_name: displayName, role }),
     });
     const json = await res.json();
-    setBusy(false);
+    setCreating(false);
 
     if (!res.ok) {
-      setError(json.error || '建立失敗');
+      toast(json.error || '建立失敗', 'error');
       return;
     }
 
-    setOk(`已建立 ${displayName}，帳號與初始密碼皆為「${json.account}」`);
+    toast(`已建立 ${displayName}，帳號與初始密碼皆為「${json.account}」`, 'success', 8000);
     setAccount('');
     setDisplayName('');
     reload();
   }
 
-  async function act(user, body, confirmText) {
-    if (confirmText && !window.confirm(confirmText)) return;
-    setError('');
-    setOk('');
-    setBusyLabel('處理中…');
+  async function act(user, body, confirmConfig) {
+    if (confirmConfig) {
+      const agreed = await confirm(confirmConfig);
+      if (!agreed) return;
+    }
 
+    setActingId(user.id);
     const res = await fetch(`/api/admin/users/${user.id}`, {
       method: body === 'delete' ? 'DELETE' : 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: body === 'delete' ? undefined : JSON.stringify(body),
     });
     const json = await res.json().catch(() => ({}));
-    setBusyLabel('');
+    setActingId(null);
 
     if (!res.ok) {
-      setError(json.error || '操作失敗');
+      toast(json.error || '操作失敗', 'error');
       return;
     }
 
     if (json.initial_password) {
-      setOk(`已將 ${user.display_name} 的密碼重設為「${json.initial_password}」，對方下次登入需重新設定。`);
+      toast(
+        `已將 ${user.display_name} 的密碼重設為「${json.initial_password}」，對方下次登入需重新設定。`,
+        'success',
+        8000
+      );
     } else {
-      setOk('已更新。');
+      toast('已更新', 'success');
     }
     reload();
   }
@@ -80,11 +87,6 @@ export default function UserManager({ me, initialUsers, creatableRoles }) {
 
   return (
     <>
-      <Busy show={Boolean(busyLabel)} label={busyLabel} />
-
-      {error && <div className="notice notice-error">{error}</div>}
-      {ok && <div className="notice notice-ok">{ok}</div>}
-
       {creatableRoles.length > 0 && (
         <div className="card">
           <h3>新增帳號</h3>
@@ -95,7 +97,7 @@ export default function UserManager({ me, initialUsers, creatableRoles }) {
                 <input
                   value={account}
                   onChange={(e) => setAccount(e.target.value)}
-                  placeholder="例：fx001"
+                  placeholder="例：fx0001"
                   autoCapitalize="none"
                   required
                 />
@@ -121,19 +123,19 @@ export default function UserManager({ me, initialUsers, creatableRoles }) {
                 </select>
               </label>
 
-              <button className="btn-primary" disabled={busy}>
-                {busy ? '建立中…' : '建立帳號'}
-              </button>
+              <Button type="submit" variant="primary" loading={creating}>
+                建立帳號
+              </Button>
             </div>
           </form>
-          <p style={{ fontSize: 13, color: 'var(--muted)', margin: '12px 0 0' }}>
-            帳號限 6–20 字元的英數字與底線，建立後不可更改。
-          </p>
         </div>
       )}
 
       <div className="card">
-        <h3>帳號列表（{users.length}）</h3>
+        <h3>
+          帳號列表（{users.length}）
+          {refreshing && <Spinner size="sm" className="spinner-inline" />}
+        </h3>
 
         {users.length === 0 ? (
           <div className="empty">目前沒有帳號。用上面的表單建立第一個。</div>
@@ -150,78 +152,91 @@ export default function UserManager({ me, initialUsers, creatableRoles }) {
                 </tr>
               </thead>
               <tbody>
-                {users.map((user) => (
-                  <tr key={user.id}>
-                    <td>{user.account}</td>
-                    <td>{user.display_name}</td>
-                    <td>
-                      {me.role === 'admin' && user.id !== me.id ? (
-                        <select
-                          value={user.role}
-                          onChange={(e) =>
-                            act(user, { action: 'set_role', role: e.target.value })
-                          }
-                        >
-                          {Object.entries(ROLE_LABELS).map(([value, label]) => (
-                            <option key={value} value={value}>
-                              {label}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        ROLE_LABELS[user.role]
-                      )}
-                    </td>
-                    <td>
-                      {!user.is_active
-                        ? '已停用'
-                        : user.must_change_password
-                          ? '待首次登入'
-                          : '使用中'}
-                    </td>
-                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      {canManage(user) && (
-                        <>
-                          <button
-                            className="btn-quiet btn-sm"
-                            onClick={() =>
-                              act(
-                                user,
-                                { action: 'reset_password' },
-                                `將 ${user.display_name} 的密碼重設為帳號「${user.account}」？`
-                              )
+                {users.map((user) => {
+                  const busy = actingId === user.id;
+                  return (
+                    <tr key={user.id}>
+                      <td>{user.account}</td>
+                      <td>{user.display_name}</td>
+                      <td>
+                        {me.role === 'admin' && user.id !== me.id ? (
+                          <select
+                            className="input-sm"
+                            value={user.role}
+                            disabled={busy}
+                            onChange={(e) =>
+                              act(user, { action: 'set_role', role: e.target.value })
                             }
                           >
-                            重設密碼
-                          </button>{' '}
-                          <button
-                            className="btn-quiet btn-sm"
-                            onClick={() =>
-                              act(user, {
-                                action: 'set_active',
-                                is_active: !user.is_active,
-                              })
-                            }
-                          >
-                            {user.is_active ? '停用' : '啟用'}
-                          </button>{' '}
-                          <button
-                            className="btn-danger btn-sm"
-                            onClick={() =>
-                              act(
-                                user,
-                                'delete',
-                                `刪除 ${user.display_name}（${user.account}）？此操作無法復原。`
-                              )
-                            }
-                          >
-                            刪除
-                          </button>
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                            {Object.entries(ROLE_LABELS).map(([value, label]) => (
+                              <option key={value} value={value}>
+                                {label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          ROLE_LABELS[user.role]
+                        )}
+                      </td>
+                      <td>
+                        {!user.is_active ? (
+                          <span className="badge">已停用</span>
+                        ) : user.must_change_password ? (
+                          <span className="badge badge-warning">待首次登入</span>
+                        ) : (
+                          <span className="badge badge-success">使用中</span>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        {canManage(user) && (
+                          <span style={{ display: 'inline-flex', gap: 6 }}>
+                            <Button
+                              size="sm"
+                              loading={busy}
+                              onClick={() =>
+                                act(
+                                  user,
+                                  { action: 'reset_password' },
+                                  {
+                                    title: '重設密碼',
+                                    description: `將 ${user.display_name} 的密碼重設為帳號「${user.account}」，對方下次登入時必須重新設定。`,
+                                    confirmLabel: '重設',
+                                  }
+                                )
+                              }
+                            >
+                              重設密碼
+                            </Button>
+                            <Button
+                              size="sm"
+                              disabled={busy}
+                              onClick={() =>
+                                act(user, { action: 'set_active', is_active: !user.is_active })
+                              }
+                            >
+                              {user.is_active ? '停用' : '啟用'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              disabled={busy}
+                              onClick={() =>
+                                act(user, 'delete', {
+                                  title: '刪除帳號',
+                                  description: `刪除 ${user.display_name}（${user.account}）？此操作無法復原。`,
+                                  confirmLabel: '刪除',
+                                  variant: 'destructive',
+                                })
+                              }
+                            >
+                              刪除
+                            </Button>
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

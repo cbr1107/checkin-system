@@ -27,7 +27,6 @@ export default async function SubEventsPage() {
     <main className="page">
       <div className="page-head">
         <h1>子活動</h1>
-        <p>每個子活動有自己的名單與組別。需要記錄離場時間的活動，請開啟簽退。</p>
       </div>
 
       <SubEventList initialEvents={events || []} counts={tally} />

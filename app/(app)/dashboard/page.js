@@ -3,14 +3,25 @@ import { requireUser } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { ROLE_LABELS, atLeast } from '@/lib/constants';
 
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardPage({ searchParams }) {
   const profile = await requireUser();
   const supabase = createClient();
 
-  const { count: eventCount } = await supabase
+  const { data: events } = await supabase
     .from('sub_events')
-    .select('id', { count: 'exact', head: true })
-    .eq('is_active', true);
+    .select('id, name, location, require_checkout')
+    .eq('is_active', true)
+    .order('starts_at', { ascending: true, nullsFirst: false })
+    .limit(6);
+
+  const { data: stats } = await supabase
+    .from('sub_event_stats')
+    .select('sub_event_id, total, checked_in');
+
+  const tally = {};
+  for (const row of stats || []) tally[row.sub_event_id] = row;
 
   return (
     <main className="page">
@@ -20,29 +31,33 @@ export default async function DashboardPage({ searchParams }) {
 
       <div className="page-head">
         <h1>{profile.display_name}，歡迎回來</h1>
-        <p>
-          目前身分為{ROLE_LABELS[profile.role]}。系統中有 {eventCount ?? 0} 個進行中的子活動。
-        </p>
       </div>
 
-      <div className="card">
-        <h3>建置進度</h3>
-        <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--muted)' }}>
-          <li>
-            P1 帳號與權限 — 已完成（
-            {atLeast(profile.role, 'lead') ? (
-              <Link href="/admin/users">帳號管理</Link>
-            ) : (
-              '由註冊長以上管理'
+      {events && events.length > 0 ? (
+        <div className="event-picker">
+          {events.map((ev) => (
+            <Link key={ev.id} href={`/checkin/${ev.id}`} className="event-tile">
+              <strong>{ev.name}</strong>
+              <span>
+                已報到 {tally[ev.id]?.checked_in ?? 0}／{tally[ev.id]?.total ?? 0}
+                {ev.require_checkout ? ' · 需簽退' : ''}
+              </span>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <div className="card">
+          <div className="empty">
+            目前沒有進行中的子活動。
+            {atLeast(profile.role, 'lead') && (
+              <>
+                {' '}
+                <Link href="/sub-events">建立一個</Link>
+              </>
             )}
-            ）
-          </li>
-          <li>P2 子活動與名單匯入 — 建置中</li>
-          <li>P3 現場報到與簽退 — 待建置</li>
-          <li>P4 離線快取與同步 — 待建置</li>
-          <li>P5 儀表板與匯出 — 待建置</li>
-        </ul>
-      </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
