@@ -424,6 +424,25 @@ ${rows
     <>
       <Busy show={Boolean(busyLabel)} label={busyLabel} />
 
+      <div className="page-head page-head-row">
+        <h1>註冊作業中心</h1>
+        {event && (
+          <div className="head-actions">
+            <Button onClick={() => setModal('start')}>報到準備</Button>
+            {isLead && (
+              <Button onClick={() => setModal('staff')}>
+                組員權限設定
+                {event.open_to_all_staff
+                  ? '（全部）'
+                  : grants.length > 0
+                    ? `（${grants.length}）`
+                    : ''}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* 活動選擇 */}
       <div className="card">
         <h3>子活動</h3>
@@ -441,19 +460,6 @@ ${rows
             </select>
           </label>
         </div>
-
-        {event && (
-          <div className="center-actions">
-            <Button onClick={() => setModal('start')}>開場前</Button>
-            {isLead && (
-              <Button onClick={() => setModal('staff')}>
-                可操作的註冊組員
-                {!event.open_to_all_staff && grants.length > 0 && `（${grants.length}）`}
-                {event.open_to_all_staff && '（全部）'}
-              </Button>
-            )}
-          </div>
-        )}
 
         {isLead && (
           <form onSubmit={createEvent} className="row" style={{ marginTop: 18 }}>
@@ -786,7 +792,7 @@ ${rows
       {/* 可操作的註冊組員 */}
       <Modal
         open={modal === 'staff'}
-        title="可操作此活動名單的註冊組員"
+        title="組員權限設定"
         onClose={() => setModal(null)}
         size="lg"
       >
@@ -868,7 +874,7 @@ ${rows
       </Modal>
 
       {/* 開場前 */}
-      <Modal open={modal === 'start'} title="開場前" onClose={() => setModal(null)}>
+      <Modal open={modal === 'start'} title="報到準備" onClose={() => setModal(null)}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <Button block onClick={copyLink}>
             複製報到連結

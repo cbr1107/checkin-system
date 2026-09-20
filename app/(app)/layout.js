@@ -1,5 +1,5 @@
 import { headers } from 'next/headers';
-import { requireUser, getSettings } from '@/lib/auth';
+import { requireUser, canUseRegistrationCenter } from '@/lib/auth';
 import { ROLE_LABELS, APP_VERSION, APP_VERSION_DATE, atLeast } from '@/lib/constants';
 import UiProvider from '@/components/ui/UiProvider';
 import SignOutButton from './SignOutButton';
@@ -28,10 +28,8 @@ function clientIp() {
 
 export default async function AppLayout({ children }) {
   const profile = await requireUser();
-  const settings = await getSettings();
+  const showCenter = await canUseRegistrationCenter(profile);
   const ip = clientIp();
-
-  const centerRoles = settings.registration_center?.roles || ['admin', 'lead'];
 
   const links = [
     { href: '/dashboard', label: '總覽', min: 'checkin' },
@@ -43,9 +41,7 @@ export default async function AppLayout({ children }) {
   ]
     .filter((l) => atLeast(profile.role, l.min))
     .concat(
-      centerRoles.includes(profile.role)
-        ? [{ href: '/registration', label: '註冊作業' }]
-        : []
+      showCenter ? [{ href: '/registration', label: '註冊作業' }] : []
     )
     .sort((a, b) => ORDER.indexOf(a.href) - ORDER.indexOf(b.href));
 
