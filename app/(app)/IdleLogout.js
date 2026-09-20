@@ -55,6 +55,7 @@ export default function IdleProvider({ children }) {
   const lastActivity = useRef(Date.now());
   const loggingOut = useRef(false);
   const [remainingMs, setRemainingMs] = useState(IDLE_TIMEOUT_MS);
+  const mountedAt = useRef(Date.now());
   const [paused, setPaused] = useState(false);
 
   const markActive = useCallback(() => {
@@ -78,12 +79,9 @@ export default function IdleProvider({ children }) {
   }, [router]);
 
   useEffect(() => {
-    try {
-      const stored = Number(localStorage.getItem(STORAGE_KEY));
-      if (stored) lastActivity.current = stored;
-    } catch {
-      // 忽略
-    }
+    // 載入頁面本身就是活動。不能沿用 localStorage 裡上一次的時間戳——
+    // 那個值可能是幾小時前留下的，會讓剛登入的人立刻被登出。
+    markActive();
 
     for (const name of EVENTS) {
       window.addEventListener(name, markActive, { passive: true });
@@ -109,7 +107,7 @@ export default function IdleProvider({ children }) {
       setPaused(false);
       const left = IDLE_TIMEOUT_MS - (Date.now() - lastActivity.current);
       setRemainingMs(left);
-      if (left <= 0) logout();
+      if (left <= 0 && Date.now() - mountedAt.current > 5000) logout();
     }, 1000);
 
     return () => {

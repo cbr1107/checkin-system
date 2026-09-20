@@ -1,5 +1,5 @@
 import { headers } from 'next/headers';
-import { requireUser } from '@/lib/auth';
+import { requireUser, getSettings } from '@/lib/auth';
 import { ROLE_LABELS, APP_VERSION, APP_VERSION_DATE, atLeast } from '@/lib/constants';
 import UiProvider from '@/components/ui/UiProvider';
 import SignOutButton from './SignOutButton';
@@ -8,6 +8,16 @@ import NavProgress from './NavProgress';
 import NavLinks from './NavLinks';
 import ThemeToggle from './ThemeToggle';
 import IdleProvider, { IdleCountdown } from './IdleLogout';
+
+const ORDER = [
+  '/dashboard',
+  '/registration',
+  '/checkin',
+  '/sub-events',
+  '/records',
+  '/admin/users',
+  '/admin/settings',
+];
 
 function clientIp() {
   const h = headers();
@@ -18,7 +28,10 @@ function clientIp() {
 
 export default async function AppLayout({ children }) {
   const profile = await requireUser();
+  const settings = await getSettings();
   const ip = clientIp();
+
+  const centerRoles = settings.registration_center?.roles || ['admin', 'lead'];
 
   const links = [
     { href: '/dashboard', label: '總覽', min: 'checkin' },
@@ -27,7 +40,14 @@ export default async function AppLayout({ children }) {
     { href: '/records', label: '報到紀錄', min: 'checkin' },
     { href: '/admin/users', label: '帳號管理', min: 'lead' },
     { href: '/admin/settings', label: '系統設定', min: 'admin' },
-  ].filter((l) => atLeast(profile.role, l.min));
+  ]
+    .filter((l) => atLeast(profile.role, l.min))
+    .concat(
+      centerRoles.includes(profile.role)
+        ? [{ href: '/registration', label: '註冊作業' }]
+        : []
+    )
+    .sort((a, b) => ORDER.indexOf(a.href) - ORDER.indexOf(b.href));
 
   return (
     <UiProvider>

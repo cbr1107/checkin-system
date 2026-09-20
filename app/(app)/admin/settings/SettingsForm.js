@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Button from '@/components/ui/Button';
+import { ROLE_LABELS } from '@/lib/constants';
 import Switch from '@/components/ui/Switch';
 import { useToast } from '@/components/ui/UiProvider';
 
@@ -16,12 +17,15 @@ const SIZES = [
 
 const FIXED = ['name', 'code', 'team'];
 
-export default function SettingsForm({ displayFields, offlineCheckin }) {
+export default function SettingsForm({ displayFields, offlineCheckin, registrationCenter }) {
   const router = useRouter();
   const toast = useToast();
 
   const [fields, setFields] = useState(displayFields.fields || []);
   const [offline, setOffline] = useState(offlineCheckin.enabled !== false);
+  const [centerRoles, setCenterRoles] = useState(
+    registrationCenter?.roles || ['admin', 'lead']
+  );
   const [newKey, setNewKey] = useState('');
   const [newLabel, setNewLabel] = useState('');
   const [saving, setSaving] = useState(false);
@@ -76,6 +80,11 @@ export default function SettingsForm({ displayFields, offlineCheckin }) {
         value: { enabled: offline },
         updated_at: new Date().toISOString(),
       }),
+      supabase.from('app_settings').upsert({
+        key: 'registration_center',
+        value: { roles: centerRoles },
+        updated_at: new Date().toISOString(),
+      }),
     ]);
 
     setSaving(false);
@@ -96,6 +105,30 @@ export default function SettingsForm({ displayFields, offlineCheckin }) {
         <Switch checked={offline} onChange={setOffline}>
           允許裝置在沒有網路時繼續報到，恢復連線後自動同步
         </Switch>
+      </div>
+
+      <div className="card">
+        <h3>註冊作業中心開放身分</h3>
+        <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
+          {['admin', 'lead', 'staff', 'checkin'].map((role) => (
+            <label
+              key={role}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+            >
+              <input
+                type="checkbox"
+                checked={centerRoles.includes(role)}
+                disabled={role === 'admin'}
+                onChange={(e) =>
+                  setCenterRoles((prev) =>
+                    e.target.checked ? [...prev, role] : prev.filter((r) => r !== role)
+                  )
+                }
+              />
+              {ROLE_LABELS[role]}
+            </label>
+          ))}
+        </div>
       </div>
 
       <div className="card">

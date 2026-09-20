@@ -16,6 +16,7 @@ export default async function SettingsPage() {
       <SettingsForm
         displayFields={settings.display_fields || { fields: [] }}
         offlineCheckin={settings.offline_checkin || { enabled: true }}
+        registrationCenter={settings.registration_center || { roles: ['admin', 'lead'] }}
       />
     </main>
   );
