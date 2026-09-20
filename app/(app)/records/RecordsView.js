@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { atLeast } from '@/lib/constants';
-import { formatDuration } from '@/lib/attendance';
+import { formatDuration, compareTeams } from '@/lib/attendance';
 import Button from '@/components/ui/Button';
 import Spinner from '@/components/ui/Spinner';
 import Skeleton from '@/components/ui/Skeleton';
@@ -116,7 +116,7 @@ export default function RecordsView({ profile, events }) {
       checkedOut,
       present: checkedIn - checkedOut,
       rate: total ? Math.round((checkedIn / total) * 100) : 0,
-      teams: [...teams.entries()].sort((a, b) => a[0].localeCompare(b[0], 'zh-Hant')),
+      teams: [...teams.entries()].sort((a, b) => compareTeams(a[0], b[0])),
     };
   }, [roster]);
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { atLeast } from '@/lib/constants';
+import { compareTeams } from '@/lib/attendance';
 import Button from '@/components/ui/Button';
 import Spinner from '@/components/ui/Spinner';
 import Switch from '@/components/ui/Switch';
@@ -361,9 +362,12 @@ export default function RegistrationCenter({ profile, initialEvents, staffUsers 
   }
 
   function printRoster() {
-    const rows = [...roster].sort((a, b) =>
-      (a.team || '').localeCompare(b.team || '', 'zh-Hant') ||
-      (a.participants?.code || '').localeCompare(b.participants?.code || '')
+    const rows = [...roster].sort(
+      (a, b) =>
+        compareTeams(a.team || '未分組', b.team || '未分組') ||
+        (a.participants?.code || '').localeCompare(b.participants?.code || '', 'zh-Hant', {
+          numeric: true,
+        })
     );
 
     const html = `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">

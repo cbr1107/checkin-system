@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { atLeast } from '@/lib/constants';
+import { compareTeams } from '@/lib/attendance';
 import Button from '@/components/ui/Button';
 import Spinner from '@/components/ui/Spinner';
 import Switch from '@/components/ui/Switch';
@@ -51,7 +52,7 @@ export default function SubEventDetail({
 
   const teams = useMemo(() => {
     const set = new Set(registrations.map((r) => r.team).filter(Boolean));
-    return [...set].sort();
+    return [...set].sort(compareTeams);
   }, [registrations]);
 
   const filtered = useMemo(() => {
