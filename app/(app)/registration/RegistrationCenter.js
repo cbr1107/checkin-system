@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { atLeast } from '@/lib/constants';
 import { compareTeams } from '@/lib/attendance';
+import { safeFilename } from '@/lib/download';
 import Button from '@/components/ui/Button';
 import Spinner from '@/components/ui/Spinner';
 import Switch from '@/components/ui/Switch';
@@ -371,51 +372,61 @@ export default function RegistrationCenter({ profile, initialEvents, staffUsers 
     );
   }
 
-  function printRoster() {
-    const rows = [...roster].sort(
-      (a, b) =>
-        compareTeams(a.team || '未分組', b.team || '未分組') ||
-        (a.participants?.code || '').localeCompare(b.participants?.code || '', 'zh-Hant', {
-          numeric: true,
-        })
-    );
+  /** 紙本簽到單：直接下載 Excel，開啟即可列印 */
+  async function downloadSignSheet() {
+    setBusyLabel('產生簽到單…');
+    try {
+      const XLSX = await import('xlsx');
 
-    const html = `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
-<title>${event.name} 紙本報到清單</title>
-<style>
-  body { font-family: "Microsoft JhengHei", sans-serif; padding: 24px; }
-  h1 { font-size: 18px; margin: 0 0 4px; }
-  p { color: #555; font-size: 12px; margin: 0 0 16px; }
-  table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  th, td { border: 1px solid #999; padding: 6px 8px; text-align: left; }
-  th { background: #eee; }
-  td.sign { width: 120px; }
-  @media print { @page { margin: 12mm; } }
-</style></head><body>
-<h1>${event.name}　紙本報到清單</h1>
-<p>共 ${rows.length} 人　列印時間：${new Date().toLocaleString('zh-TW')}</p>
-<table><thead><tr><th>組別</th><th>編號</th><th>姓名</th><th class="sign">報到簽名</th>${
-      event.require_checkout ? '<th class="sign">簽退簽名</th>' : ''
-    }</tr></thead><tbody>
-${rows
-  .map(
-    (r) =>
-      `<tr><td>${r.team || ''}</td><td>${r.participants?.code || ''}</td><td>${
-        r.participants?.name || ''
-      }</td><td></td>${event.require_checkout ? '<td></td>' : ''}</tr>`
-  )
-  .join('')}
-</tbody></table></body></html>`;
+      const rows = [...roster].sort(
+        (a, b) =>
+          compareTeams(a.team || '未分組', b.team || '未分組') ||
+          (a.participants?.code || '').localeCompare(b.participants?.code || '', 'zh-Hant', {
+            numeric: true,
+          })
+      );
 
-    const win = window.open('', '_blank');
-    if (!win) {
-      toast('瀏覽器擋住了新視窗，請允許彈出視窗後再試', 'error');
-      return;
+      const header = ['組別', '編號', '姓名', '報到簽名'];
+      if (event.require_checkout) header.push('簽退簽名');
+
+      const aoa = [
+        [`${event.name}　紙本簽到單`],
+        [`共 ${rows.length} 人　產生時間：${new Date().toLocaleString('zh-TW')}`],
+        [],
+        header,
+        ...rows.map((r) => {
+          const line = [
+            r.team || '',
+            r.participants?.code || '',
+            r.participants?.name || '',
+            '',
+          ];
+          if (event.require_checkout) line.push('');
+          return line;
+        }),
+      ];
+
+      const sheet = XLSX.utils.aoa_to_sheet(aoa);
+      sheet['!cols'] = [
+        { wch: 10 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 20 },
+        ...(event.require_checkout ? [{ wch: 20 }] : []),
+      ];
+      sheet['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: header.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: header.length - 1 } },
+      ];
+
+      const book = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(book, sheet, '簽到單');
+      XLSX.writeFile(book, `${safeFilename(event.name)}-簽到單.xlsx`);
+      toast(`已下載簽到單（${rows.length} 人）`, 'success');
+    } catch (err) {
+      toast(`產生失敗：${err.message}`, 'error');
     }
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    win.print();
+    setBusyLabel('');
   }
 
   const grantedIds = new Set(grants.map((g) => g.user_id));
@@ -879,8 +890,8 @@ ${rows
           <Button block onClick={copyLink}>
             複製報到連結
           </Button>
-          <Button block onClick={printRoster} disabled={roster.length === 0}>
-            列印紙本清單（{roster.length} 人）
+          <Button block onClick={downloadSignSheet} disabled={roster.length === 0}>
+            下載紙本簽到單（{roster.length} 人）
           </Button>
           <Button block variant="primary" onClick={() => router.push(`/checkin/${eventId}`)}>
             進入報到畫面

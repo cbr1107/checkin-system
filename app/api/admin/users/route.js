@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { accountToEmail, normalizeAccount, validateAccount } from '@/lib/account';
 import { CREATABLE_ROLES } from '@/lib/constants';
+import { generateLoginKey } from '@/lib/loginKey';
 
 async function getCaller() {
   const supabase = createClient();
@@ -72,6 +73,8 @@ export async function POST(request) {
     );
   }
 
+  const loginKey = generateLoginKey();
+
   const { error: profileError } = await admin.from('app_users').insert({
     id: created.user.id,
     account,
@@ -80,6 +83,7 @@ export async function POST(request) {
     note,
     must_change_password: true,
     created_by: caller.id,
+    login_key: loginKey,
   });
 
   if (profileError) {
@@ -91,5 +95,10 @@ export async function POST(request) {
     );
   }
 
-  return NextResponse.json({ ok: true, account, initial_password: account });
+  return NextResponse.json({
+    ok: true,
+    account,
+    initial_password: account,
+    login_key: loginKey,
+  });
 }

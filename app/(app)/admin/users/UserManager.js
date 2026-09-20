@@ -6,6 +6,7 @@ import { ROLE_LABELS } from '@/lib/constants';
 import Button from '@/components/ui/Button';
 import Spinner from '@/components/ui/Spinner';
 import { useToast, useConfirm } from '@/components/ui/UiProvider';
+import LoginKeyModal from './LoginKeyModal';
 
 export default function UserManager({
   me,
@@ -23,6 +24,7 @@ export default function UserManager({
   const [role, setRole] = useState(creatableRoles[0] || 'checkin');
   const [creating, setCreating] = useState(false);
   const [actingId, setActingId] = useState(null);
+  const [keyUser, setKeyUser] = useState(null);
   const [refreshing, startRefresh] = useTransition();
 
   const users = initialUsers;
@@ -93,6 +95,8 @@ export default function UserManager({
 
   return (
     <>
+      {keyUser && <LoginKeyModal user={keyUser} onClose={() => setKeyUser(null)} />}
+
       {creatableRoles.length > 0 && (
         <div className="card">
           <h3>新增帳號</h3>
@@ -232,6 +236,9 @@ export default function UserManager({
                       <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                         {canManage(user) && (
                           <span style={{ display: 'inline-flex', gap: 6 }}>
+                            <Button size="sm" onClick={() => setKeyUser(user)}>
+                              識別碼
+                            </Button>
                             <Button
                               size="sm"
                               loading={busy}

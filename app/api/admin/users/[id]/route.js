@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { generateLoginKey } from '@/lib/loginKey';
 
 async function getCaller() {
   const supabase = createClient();
@@ -30,10 +31,38 @@ function canManage(caller, target) {
   return false;
 }
 
+/** 取得識別金鑰：管理者，或建立這個帳號的人 */
+export async function GET(request, { params }) {
+  const caller = await getCaller();
+  if (!caller) return NextResponse.json({ error: '尚未登入' }, { status: 401 });
+
+  const admin = createAdminClient();
+  const { data: target } = await admin
+    .from('app_users')
+    .select('id, account, display_name, login_key, qr_login_enabled, created_by')
+    .eq('id', params.id)
+    .maybeSingle();
+
+  if (!target) return NextResponse.json({ error: '找不到這個帳號' }, { status: 404 });
+
+  const allowed =
+    caller.role === 'admin' || target.created_by === caller.id || target.id === caller.id;
+  if (!allowed) {
+    return NextResponse.json({ error: '你沒有檢視這組金鑰的權限' }, { status: 403 });
+  }
+
+  return NextResponse.json({
+    account: target.account,
+    display_name: target.display_name,
+    login_key: target.login_key,
+    qr_login_enabled: target.qr_login_enabled,
+  });
+}
+
 async function loadTarget(admin, id) {
   const { data } = await admin
     .from('app_users')
-    .select('id, account, role, created_by, is_active')
+    .select('id, account, display_name, role, created_by, is_active')
     .eq('id', id)
     .maybeSingle();
   return data;
@@ -71,6 +100,24 @@ export async function PATCH(request, { params }) {
     await admin
       .from('app_users')
       .update({ is_active: Boolean(body.is_active) })
+      .eq('id', target.id);
+    return NextResponse.json({ ok: true });
+  }
+
+  if (body.action === 'regenerate_key') {
+    const loginKey = generateLoginKey();
+    const { error } = await admin
+      .from('app_users')
+      .update({ login_key: loginKey })
+      .eq('id', target.id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ ok: true, login_key: loginKey });
+  }
+
+  if (body.action === 'set_qr_login') {
+    await admin
+      .from('app_users')
+      .update({ qr_login_enabled: Boolean(body.enabled) })
       .eq('id', target.id);
     return NextResponse.json({ ok: true });
   }

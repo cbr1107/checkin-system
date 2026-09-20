@@ -17,12 +17,18 @@ const SIZES = [
 
 const FIXED = ['name', 'code', 'team'];
 
-export default function SettingsForm({ displayFields, offlineCheckin, registrationCenter }) {
+export default function SettingsForm({
+  displayFields,
+  offlineCheckin,
+  registrationCenter,
+  qrLogin,
+}) {
   const router = useRouter();
   const toast = useToast();
 
   const [fields, setFields] = useState(displayFields.fields || []);
   const [offline, setOffline] = useState(offlineCheckin.enabled !== false);
+  const [qrEnabled, setQrEnabled] = useState(qrLogin?.enabled !== false);
   const [centerRoles, setCenterRoles] = useState(
     registrationCenter?.roles || ['admin', 'lead']
   );
@@ -81,6 +87,11 @@ export default function SettingsForm({ displayFields, offlineCheckin, registrati
         updated_at: new Date().toISOString(),
       }),
       supabase.from('app_settings').upsert({
+        key: 'qr_login',
+        value: { enabled: qrEnabled },
+        updated_at: new Date().toISOString(),
+      }),
+      supabase.from('app_settings').upsert({
         key: 'registration_center',
         value: { roles: centerRoles },
         updated_at: new Date().toISOString(),
@@ -104,6 +115,13 @@ export default function SettingsForm({ displayFields, offlineCheckin, registrati
         <h3>離線報到</h3>
         <Switch checked={offline} onChange={setOffline}>
           允許裝置在沒有網路時繼續報到，恢復連線後自動同步
+        </Switch>
+      </div>
+
+      <div className="card">
+        <h3>掃碼登入</h3>
+        <Switch checked={qrEnabled} onChange={setQrEnabled}>
+          允許使用個人識別碼免密碼登入
         </Switch>
       </div>
 
