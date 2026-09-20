@@ -34,7 +34,9 @@ export default async function SubEventPage({ params }) {
 
   const { data: grants } = await supabase
     .from('sub_event_grants')
-    .select('id, user_id, can_edit_roster, can_export, app_users(display_name, account, role)')
+    .select(
+      'id, user_id, can_edit_roster, can_export, app_users!sub_event_grants_user_id_fkey(display_name, account, role)'
+    )
     .eq('sub_event_id', params.id);
 
   const { data: staffUsers } = atLeast(profile.role, 'lead')

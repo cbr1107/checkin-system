@@ -10,6 +10,7 @@ import Spinner from '@/components/ui/Spinner';
 import Switch from '@/components/ui/Switch';
 import Busy from '@/components/ui/Busy';
 import Skeleton from '@/components/ui/Skeleton';
+import Modal from '@/components/ui/Modal';
 import { useToast, useConfirm } from '@/components/ui/UiProvider';
 import ImportWizard from '../sub-events/[id]/ImportWizard';
 
@@ -49,6 +50,7 @@ export default function RegistrationCenter({ profile, initialEvents, staffUsers 
   const [manual, setManual] = useState({ code: '', name: '', team: '', qr_code: '' });
   const [adding, setAdding] = useState(false);
 
+  const [modal, setModal] = useState(null);
   const [copySource, setCopySource] = useState('');
   const [copyTeam, setCopyTeam] = useState(true);
 
@@ -80,11 +82,16 @@ export default function RegistrationCenter({ profile, initialEvents, staffUsers 
       supabase.from('registrations').select(ROSTER_SELECT).eq('sub_event_id', eventId).limit(2000),
       supabase
         .from('sub_event_grants')
-        .select('id, user_id, app_users(display_name, account)')
+        // sub_event_grants 有 user_id 與 granted_by 兩個欄位指向 app_users，
+        // 必須指定用哪一個外鍵，否則整個查詢會失敗
+        .select(
+          'id, user_id, app_users!sub_event_grants_user_id_fkey(display_name, account)'
+        )
         .eq('sub_event_id', eventId),
     ]);
 
     if (rosterRes.error) toast(rosterRes.error.message, 'error');
+    if (grantRes.error) toast(`讀取授權清單失敗：${grantRes.error.message}`, 'error');
     setRoster(rosterRes.data || []);
     setGrants(grantRes.data || []);
     setSelected(new Set());
@@ -318,12 +325,15 @@ export default function RegistrationCenter({ profile, initialEvents, staffUsers 
   async function addGrant(userId) {
     if (!userId) return;
     const supabase = createClient();
-    const { error } = await supabase.from('sub_event_grants').insert({
-      sub_event_id: eventId,
-      user_id: userId,
-      can_edit_roster: true,
-      granted_by: profile.id,
-    });
+    const { error } = await supabase.from('sub_event_grants').upsert(
+      {
+        sub_event_id: eventId,
+        user_id: userId,
+        can_edit_roster: true,
+        granted_by: profile.id,
+      },
+      { onConflict: 'sub_event_id,user_id' }
+    );
     if (error) toast(error.message, 'error');
     else {
       toast('已授權', 'success');
@@ -431,6 +441,19 @@ ${rows
             </select>
           </label>
         </div>
+
+        {event && (
+          <div className="center-actions">
+            <Button onClick={() => setModal('start')}>開場前</Button>
+            {isLead && (
+              <Button onClick={() => setModal('staff')}>
+                可操作的註冊組員
+                {!event.open_to_all_staff && grants.length > 0 && `（${grants.length}）`}
+                {event.open_to_all_staff && '（全部）'}
+              </Button>
+            )}
+          </div>
+        )}
 
         {isLead && (
           <form onSubmit={createEvent} className="row" style={{ marginTop: 18 }}>
@@ -757,107 +780,110 @@ ${rows
             )}
           </div>
 
-          {/* 操作人員 */}
-          {isLead && (
-            <div className="card">
-              <h3>可操作此活動名單的註冊組員</h3>
-
-              <div style={{ marginBottom: 16 }}>
-                <Switch
-                  checked={form?.open_to_all_staff || false}
-                  onChange={async (v) => {
-                    setForm({ ...form, open_to_all_staff: v });
-                    const supabase = createClient();
-                    const { error } = await supabase
-                      .from('sub_events')
-                      .update({ open_to_all_staff: v })
-                      .eq('id', eventId);
-                    if (error) toast(error.message, 'error');
-                    else {
-                      setEvents((prev) =>
-                        prev.map((ev) =>
-                          ev.id === eventId ? { ...ev, open_to_all_staff: v } : ev
-                        )
-                      );
-                      toast(v ? '已開放全部註冊組員' : '已改為逐一授權', 'success');
-                    }
-                  }}
-                >
-                  開放給所有註冊組員（不限定名單）
-                </Switch>
-              </div>
-
-              {!form?.open_to_all_staff && (
-                <>
-                  {grants.length === 0 ? (
-                    <div className="empty">尚未授權任何組員</div>
-                  ) : (
-                    <div className="table-wrap" style={{ marginBottom: 14 }}>
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>姓名</th>
-                            <th>帳號</th>
-                            <th />
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {grants.map((g) => (
-                            <tr key={g.id}>
-                              <td>{g.app_users?.display_name}</td>
-                              <td>{g.app_users?.account}</td>
-                              <td style={{ textAlign: 'right' }}>
-                                <Button size="sm" onClick={() => removeGrant(g.id)}>
-                                  取消授權
-                                </Button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  <label className="field" style={{ maxWidth: 300 }}>
-                    <span>加入註冊組員</span>
-                    <select
-                      value=""
-                      onChange={(e) => {
-                        addGrant(e.target.value);
-                        e.target.value = '';
-                      }}
-                    >
-                      <option value="">選擇組員…</option>
-                      {staffUsers
-                        .filter((u) => !grantedIds.has(u.id))
-                        .map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.display_name}（{u.account}）
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* 開場資訊 */}
-          <div className="card">
-            <h3>開場前</h3>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <Button onClick={copyLink}>複製報到連結</Button>
-              <Button onClick={printRoster} disabled={roster.length === 0}>
-                列印紙本清單
-              </Button>
-              <Button onClick={() => router.push(`/checkin/${eventId}`)}>
-                進入報到畫面
-              </Button>
-              <Button onClick={() => router.push('/records')}>查看報到紀錄</Button>
-            </div>
-          </div>
         </>
       )}
+
+      {/* 可操作的註冊組員 */}
+      <Modal
+        open={modal === 'staff'}
+        title="可操作此活動名單的註冊組員"
+        onClose={() => setModal(null)}
+        size="lg"
+      >
+        <div style={{ marginBottom: 18 }}>
+          <Switch
+            checked={form?.open_to_all_staff || false}
+            onChange={async (v) => {
+              setForm({ ...form, open_to_all_staff: v });
+              const supabase = createClient();
+              const { error } = await supabase
+                .from('sub_events')
+                .update({ open_to_all_staff: v })
+                .eq('id', eventId);
+              if (error) toast(error.message, 'error');
+              else {
+                setEvents((prev) =>
+                  prev.map((ev) => (ev.id === eventId ? { ...ev, open_to_all_staff: v } : ev))
+                );
+                toast(v ? '已開放全部註冊組員' : '已改為逐一授權', 'success');
+              }
+            }}
+          >
+            開放給所有註冊組員（不限定名單）
+          </Switch>
+        </div>
+
+        {!form?.open_to_all_staff && (
+          <>
+            {grants.length === 0 ? (
+              <div className="empty">尚未授權任何組員</div>
+            ) : (
+              <div className="table-wrap" style={{ marginBottom: 16 }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>姓名</th>
+                      <th>帳號</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {grants.map((g) => (
+                      <tr key={g.id}>
+                        <td>{g.app_users?.display_name}</td>
+                        <td>{g.app_users?.account}</td>
+                        <td style={{ textAlign: 'right' }}>
+                          <Button size="sm" onClick={() => removeGrant(g.id)}>
+                            取消授權
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <label className="field">
+              <span>加入註冊組員</span>
+              <select
+                value=""
+                onChange={(e) => {
+                  addGrant(e.target.value);
+                  e.target.value = '';
+                }}
+              >
+                <option value="">選擇組員…</option>
+                {staffUsers
+                  .filter((u) => !grantedIds.has(u.id))
+                  .map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.display_name}（{u.account}）
+                    </option>
+                  ))}
+              </select>
+            </label>
+          </>
+        )}
+      </Modal>
+
+      {/* 開場前 */}
+      <Modal open={modal === 'start'} title="開場前" onClose={() => setModal(null)}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <Button block onClick={copyLink}>
+            複製報到連結
+          </Button>
+          <Button block onClick={printRoster} disabled={roster.length === 0}>
+            列印紙本清單（{roster.length} 人）
+          </Button>
+          <Button block variant="primary" onClick={() => router.push(`/checkin/${eventId}`)}>
+            進入報到畫面
+          </Button>
+          <Button block onClick={() => router.push('/records')}>
+            查看報到紀錄
+          </Button>
+        </div>
+      </Modal>
     </>
   );
 }

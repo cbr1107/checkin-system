@@ -1202,3 +1202,40 @@ tbody tr:last-child td { border-bottom: 0; }
   .checklist li { flex-wrap: wrap; }
   .check-label { min-width: 0; }
 }
+
+/* 一般彈出視窗 */
+.dialog-lg { max-width: 640px; }
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  max-height: min(82vh, 760px);
+  padding: 0;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-head h2 { flex: 1; font-size: 18px; margin: 0; }
+
+.modal-body {
+  padding: 20px 24px 24px;
+  overflow-y: auto;
+}
+
+.modal-body .field:last-child { margin-bottom: 0; }
+
+/* 頂部動作列 */
+.center-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
